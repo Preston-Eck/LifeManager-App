@@ -9,8 +9,8 @@ export const Login: React.FC<LoginProps> = ({ onLogin, userEmail }) => {
   const [name, setName] = useState('');
 
   return (
-    <div className="h-screen flex items-center justify-center bg-slate-100 p-4">
-      <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full text-center">
+    <div className="h-screen flex items-center justify-center bg-slate-100 p-4 overflow-y-auto">
+      <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full text-center my-8">
         <div className="mb-6 flex justify-center">
             <div className="bg-sky-100 p-4 rounded-full">
                 <i className="fas fa-mountain text-4xl text-sky-600"></i>
@@ -46,9 +46,20 @@ export const Login: React.FC<LoginProps> = ({ onLogin, userEmail }) => {
             Get Started
         </button>
 
-        <p className="mt-6 text-xs text-slate-400">
-            Clicking "Get Started" will create a spreadsheet in your Google Drive.
-        </p>
+        <div className="mt-8 text-left bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+            <h4 className="font-bold text-yellow-800 text-xs uppercase mb-2">First Time Setup?</h4>
+            <p className="text-xs text-yellow-800 mb-2">
+                If you see a screen saying <strong>"This app isn't verified"</strong>:
+            </p>
+            <ol className="list-decimal list-inside text-xs text-yellow-800 space-y-1 ml-1">
+                <li>Click <strong>Advanced</strong> (bottom left).</li>
+                <li>Click <strong>Go to LifeManager Pro (unsafe)</strong>.</li>
+                <li>Click <strong>Allow</strong> to grant permissions.</li>
+            </ol>
+            <p className="text-[10px] text-yellow-600 mt-2 italic">
+                (This appears because this is a private app you created, not published to the store).
+            </p>
+        </div>
       </div>
     </div>
   );
