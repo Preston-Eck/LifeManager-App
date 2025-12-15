@@ -1,0 +1,7 @@
+{
+  "name": "LifeManager Pro",
+  "description": "A comprehensive life management system for tasks, events, reading, and meeting notes.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
