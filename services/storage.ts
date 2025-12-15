@@ -23,7 +23,7 @@ export interface AppData {
   notes: MeetingNote[];
   calendars: GoogleCalendar[];
   user?: User;
-  userEmail?: string; // New field to carry the GAS email to frontend
+  userEmail?: string;
 }
 
 const isGAS = () => typeof window !== 'undefined' && window.google && window.google.script;
@@ -31,15 +31,21 @@ const isGAS = () => typeof window !== 'undefined' && window.google && window.goo
 export const loadAllData = (): Promise<AppData> => {
   return new Promise((resolve, reject) => {
     if (isGAS()) {
-      // Call Google Apps Script Backend
       window.google!.script.run
-        .withSuccessHandler((response: string) => {
+        .withSuccessHandler((response: any) => {
           try {
-            const data = JSON.parse(response);
+            // Robust parsing: Handle if GAS returns object OR string
+            let data: AppData;
+            if (typeof response === 'string') {
+               data = JSON.parse(response);
+            } else {
+               data = response;
+            }
             resolve(data);
           } catch (e) {
             console.error("Failed to parse server data", e);
-            resolve(getMockOrLocalData());
+            // Don't fallback to mock in production, reject so SetupWizard shows error
+            reject(e);
           }
         })
         .withFailureHandler((err: any) => {
@@ -49,18 +55,15 @@ export const loadAllData = (): Promise<AppData> => {
         .loadData();
     } else {
       // Local Development Fallback
-      setTimeout(() => resolve(getMockOrLocalData()), 500); // Simulate network delay
+      setTimeout(() => resolve(getMockOrLocalData()), 500); 
     }
   });
 };
 
 export const saveData = (type: keyof AppData, data: any): void => {
   if (isGAS()) {
-    // Send to Google Apps Script
-    // We send as a string to avoid weird object passing issues in GAS
     window.google!.script.run.saveData(type, JSON.stringify(data));
   } else {
-    // Save locally
     localStorage.setItem(`lm_${type}`, JSON.stringify(data));
   }
 };
@@ -73,13 +76,11 @@ export const initializeBackend = (): Promise<boolean> => {
         .withFailureHandler((e: any) => reject(e))
         .initializeBackend();
     } else {
-      // Mock delay
       setTimeout(() => resolve(true), 2000);
     }
   });
 }
 
-// Helper for local dev
 const getMockOrLocalData = (): AppData => {
   const get = (key: string, mock: any) => {
     const saved = localStorage.getItem(`lm_${key}`);
