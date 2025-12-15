@@ -80,7 +80,9 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({ isOpen, item, cale
       });
   };
 
-  const commonInputClass = "w-full border border-slate-300 p-2 rounded focus:ring-2 focus:ring-sky-500 outline-none text-slate-900 bg-white";
+  // Increased padding (p-3) and text-base (16px) to prevent iOS zoom and improve readability
+  const commonInputClass = "w-full border border-slate-300 p-3 rounded-lg focus:ring-2 focus:ring-sky-500 outline-none text-slate-900 bg-white text-base shadow-sm";
+  const labelClass = "block text-sm font-bold text-slate-700 uppercase mb-1.5 tracking-wide";
 
   return (
     <div className="fixed inset-0 z-[100] flex justify-end">
@@ -90,24 +92,24 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({ isOpen, item, cale
       {/* Sidebar */}
       <div className="relative w-full max-w-md bg-white h-full shadow-2xl flex flex-col transform transition-transform duration-300 ease-in-out">
         {/* Header */}
-        <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-white">
-            <h2 className="font-bold text-xl text-slate-900">
+        <div className="p-4 md:p-5 border-b border-slate-200 flex justify-between items-center bg-white">
+            <h2 className="font-bold text-xl md:text-2xl text-slate-900">
                 {isTask(formData) ? 'Edit Task' : 'Edit Event'}
             </h2>
-            <button onClick={onClose} className="text-slate-500 hover:text-slate-900 p-2">
-                <i className="fas fa-times fa-lg"></i>
+            <button onClick={onClose} className="text-slate-500 hover:text-slate-900 p-2 rounded-full hover:bg-slate-100">
+                <i className="fas fa-times fa-lg text-xl"></i>
             </button>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-white">
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 bg-white">
             {/* Event Specific Actions */}
             {!isTask(formData) && onCreateNote && (
-                <div className="bg-sky-50 border border-sky-100 p-4 rounded-lg flex flex-col gap-2">
+                <div className="bg-sky-50 border border-sky-100 p-4 rounded-xl flex flex-col gap-2">
                     <h3 className="font-bold text-sky-900 text-sm uppercase">Meeting Actions</h3>
                     <button 
                         onClick={() => onCreateNote(formData as Event)}
-                        className="flex items-center justify-center gap-2 bg-sky-600 text-white p-2 rounded hover:bg-sky-700 transition"
+                        className="flex items-center justify-center gap-2 bg-sky-600 text-white p-3 rounded-lg hover:bg-sky-700 transition font-medium"
                     >
                         <i className="fas fa-pen-fancy"></i> Create Meeting Note
                     </button>
@@ -116,7 +118,7 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({ isOpen, item, cale
 
             {/* Title / Short Desc */}
             <div>
-                <label className="block text-sm font-bold text-slate-900 uppercase mb-1">
+                <label className={labelClass}>
                     {isTask(formData) ? 'Task Name' : 'Event Title'}
                 </label>
                 <input 
@@ -134,17 +136,22 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({ isOpen, item, cale
                 <>
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-sm font-bold text-slate-900 uppercase mb-1">Status</label>
-                            <select 
-                                className={commonInputClass}
-                                value={formData.status}
-                                onChange={(e) => handleChange('status', e.target.value)}
-                            >
-                                {Object.values(TaskStatus).map(s => <option key={s} value={s}>{s}</option>)}
-                            </select>
+                            <label className={labelClass}>Status</label>
+                            <div className="relative">
+                                <select 
+                                    className={`${commonInputClass} appearance-none`}
+                                    value={formData.status}
+                                    onChange={(e) => handleChange('status', e.target.value)}
+                                >
+                                    {Object.values(TaskStatus).map(s => <option key={s} value={s}>{s}</option>)}
+                                </select>
+                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-600">
+                                    <i className="fas fa-chevron-down text-xs"></i>
+                                </div>
+                            </div>
                         </div>
                         <div>
-                            <label className="block text-sm font-bold text-slate-900 uppercase mb-1">For Who/What</label>
+                            <label className={labelClass}>For Who/What</label>
                             <input 
                                 className={commonInputClass}
                                 value={formData.forWho || ''}
@@ -156,33 +163,43 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({ isOpen, item, cale
 
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-sm font-bold text-slate-900 uppercase mb-1">Urgency</label>
-                            <select 
-                                className={commonInputClass}
-                                value={formData.urgency}
-                                onChange={(e) => handleChange('urgency', e.target.value)}
-                            >
-                                 {Object.values(Urgency).map(s => <option key={s} value={s}>{s}</option>)}
-                            </select>
+                            <label className={labelClass}>Urgency</label>
+                            <div className="relative">
+                                <select 
+                                    className={`${commonInputClass} appearance-none`}
+                                    value={formData.urgency}
+                                    onChange={(e) => handleChange('urgency', e.target.value)}
+                                >
+                                     {Object.values(Urgency).map(s => <option key={s} value={s}>{s}</option>)}
+                                </select>
+                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-600">
+                                    <i className="fas fa-chevron-down text-xs"></i>
+                                </div>
+                            </div>
                         </div>
                         <div>
-                            <label className="block text-sm font-bold text-slate-900 uppercase mb-1">Importance</label>
-                            <select 
-                                className={commonInputClass}
-                                value={formData.importance}
-                                onChange={(e) => handleChange('importance', e.target.value)}
-                            >
-                                 {Object.values(Importance).map(s => <option key={s} value={s}>{s}</option>)}
-                            </select>
+                            <label className={labelClass}>Importance</label>
+                            <div className="relative">
+                                <select 
+                                    className={`${commonInputClass} appearance-none`}
+                                    value={formData.importance}
+                                    onChange={(e) => handleChange('importance', e.target.value)}
+                                >
+                                     {Object.values(Importance).map(s => <option key={s} value={s}>{s}</option>)}
+                                </select>
+                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-600">
+                                    <i className="fas fa-chevron-down text-xs"></i>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </>
             )}
 
             {/* Date & Location (Common) */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  <div>
-                    <label className="block text-sm font-bold text-slate-900 uppercase mb-1">When</label>
+                    <label className={labelClass}>When</label>
                     <input 
                         type="datetime-local"
                         className={commonInputClass}
@@ -191,11 +208,12 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({ isOpen, item, cale
                     />
                  </div>
                  <div>
-                    <label className="block text-sm font-bold text-slate-900 uppercase mb-1">Where</label>
+                    <label className={labelClass}>Where</label>
                     <input 
                         className={commonInputClass}
                         value={formData.where || ''}
                         onChange={(e) => handleChange('where', e.target.value)}
+                        placeholder="Location"
                     />
                  </div>
             </div>
@@ -203,28 +221,28 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({ isOpen, item, cale
             {/* Duration (Tasks Only) */}
             {isTask(formData) && (
                 <div>
-                     <label className="block text-sm font-bold text-slate-900 uppercase mb-1">Est. Duration</label>
+                     <label className={labelClass}>Est. Duration</label>
                      <div className="flex gap-4">
-                        <div className="flex-1 flex items-center bg-white border border-slate-300 rounded px-2">
+                        <div className="flex-1 flex items-center bg-white border border-slate-300 rounded-lg px-2 shadow-sm focus-within:ring-2 focus-within:ring-sky-500 focus-within:border-transparent">
                              <input 
                                 type="number" 
                                 min="0" 
-                                className="w-full p-2 outline-none text-slate-900"
+                                className="w-full p-3 outline-none text-slate-900 text-base rounded-lg"
                                 value={formData.duration?.hours || 0}
                                 onChange={(e) => handleDurationChange('hours', e.target.value)}
                              />
-                             <span className="text-slate-500 text-xs font-bold px-1">HRS</span>
+                             <span className="text-slate-500 text-xs font-bold px-2">HRS</span>
                         </div>
-                        <div className="flex-1 flex items-center bg-white border border-slate-300 rounded px-2">
+                        <div className="flex-1 flex items-center bg-white border border-slate-300 rounded-lg px-2 shadow-sm focus-within:ring-2 focus-within:ring-sky-500 focus-within:border-transparent">
                              <input 
                                 type="number" 
                                 min="0" 
                                 max="59"
-                                className="w-full p-2 outline-none text-slate-900"
+                                className="w-full p-3 outline-none text-slate-900 text-base rounded-lg"
                                 value={formData.duration?.minutes || 0}
                                 onChange={(e) => handleDurationChange('minutes', e.target.value)}
                              />
-                             <span className="text-slate-500 text-xs font-bold px-1">MIN</span>
+                             <span className="text-slate-500 text-xs font-bold px-2">MIN</span>
                         </div>
                      </div>
                 </div>
@@ -233,7 +251,7 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({ isOpen, item, cale
             {/* Task Linked Email */}
             {isTask(formData) && (
                 <div>
-                    <label className="block text-sm font-bold text-slate-900 uppercase mb-1">Linked Email</label>
+                    <label className={labelClass}>Linked Email</label>
                     <div className="flex items-center gap-2">
                         <input 
                             className={commonInputClass}
@@ -246,10 +264,10 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({ isOpen, item, cale
                                 href={formData.linkedEmail.startsWith('http') ? formData.linkedEmail : `https://mail.google.com/mail/u/0/#search/${encodeURIComponent(formData.linkedEmail)}`}
                                 target="_blank"
                                 rel="noreferrer" 
-                                className="bg-slate-200 p-2 rounded hover:bg-slate-300 text-slate-700"
+                                className="bg-slate-200 p-3 rounded-lg hover:bg-slate-300 text-slate-700 transition"
                                 title="Open"
                              >
-                                <i className="fas fa-external-link-alt"></i>
+                                <i className="fas fa-external-link-alt text-lg"></i>
                              </a>
                         )}
                     </div>
@@ -258,7 +276,7 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({ isOpen, item, cale
 
             {/* Description (Common) */}
             <div>
-                <label className="block text-sm font-bold text-slate-900 uppercase mb-1">Description</label>
+                <label className={labelClass}>Description</label>
                 <textarea 
                     className={`${commonInputClass} h-32`}
                     value={isTask(formData) ? (formData.longDescription || '') : (formData.description || '')}
@@ -266,27 +284,33 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({ isOpen, item, cale
                         ? handleChange('longDescription', e.target.value)
                         : handleChange('description', e.target.value)
                     }
+                    placeholder="Add detailed notes here..."
                 />
             </div>
 
             {/* Calendar Sync Selection */}
-            <div className="bg-slate-50 p-3 rounded border border-slate-200">
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
                 <label className="block text-sm font-bold text-slate-900 uppercase mb-2 flex items-center gap-2">
-                    <i className="fab fa-google text-slate-500"></i> Google Calendar Sync
+                    <i className="fab fa-google text-slate-500 text-lg"></i> Google Calendar Sync
                 </label>
-                <select 
-                    className={commonInputClass}
-                    value={formData.calendarId || ''}
-                    onChange={(e) => handleChange('calendarId', e.target.value)}
-                >
-                    <option value="">-- Do Not Sync --</option>
-                    {calendars.map(cal => (
-                        <option key={cal.id} value={cal.id}>
-                            {cal.name} ({cal.accountId})
-                        </option>
-                    ))}
-                </select>
-                <p className="text-xs text-slate-500 mt-1">
+                <div className="relative">
+                    <select 
+                        className={`${commonInputClass} appearance-none`}
+                        value={formData.calendarId || ''}
+                        onChange={(e) => handleChange('calendarId', e.target.value)}
+                    >
+                        <option value="">-- Do Not Sync --</option>
+                        {calendars.map(cal => (
+                            <option key={cal.id} value={cal.id}>
+                                {cal.name} ({cal.accountId})
+                            </option>
+                        ))}
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-600">
+                        <i className="fas fa-chevron-down text-xs"></i>
+                    </div>
+                </div>
+                <p className="text-xs text-slate-500 mt-2">
                     {formData.calendarId ? 'Updates will be synced to Google Calendar.' : 'Select a calendar to sync this item.'}
                 </p>
             </div>
@@ -299,15 +323,15 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({ isOpen, item, cale
                 {newUpdateAttachments.length > 0 && (
                     <div className="flex gap-2 mb-2 overflow-x-auto pb-2">
                         {newUpdateAttachments.map((att) => (
-                            <div key={att.id} className="relative w-16 h-16 border rounded overflow-hidden flex-shrink-0">
+                            <div key={att.id} className="relative w-20 h-20 border rounded-lg overflow-hidden flex-shrink-0">
                                 {att.type === 'image' ? (
                                     <img src={att.url} className="w-full h-full object-cover" />
                                 ) : (
-                                    <div className="w-full h-full flex items-center justify-center bg-slate-100 text-slate-500"><i className="fas fa-file"></i></div>
+                                    <div className="w-full h-full flex items-center justify-center bg-slate-100 text-slate-500"><i className="fas fa-file text-xl"></i></div>
                                 )}
                                 <button 
                                     onClick={() => setNewUpdateAttachments(prev => prev.filter(p => p.id !== att.id))}
-                                    className="absolute top-0 right-0 bg-red-600 text-white w-5 h-5 flex items-center justify-center text-xs"
+                                    className="absolute top-0 right-0 bg-red-600 text-white w-6 h-6 flex items-center justify-center text-xs"
                                 >&times;</button>
                             </div>
                         ))}
@@ -317,13 +341,13 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({ isOpen, item, cale
                 <div className="flex gap-2 mb-4 items-end">
                     <div className="flex-1 relative">
                         <input 
-                            className="w-full border border-slate-300 p-3 pr-10 rounded text-sm text-slate-900 bg-white placeholder-slate-500 focus:ring-2 focus:ring-sky-500 outline-none"
+                            className="w-full border border-slate-300 p-3 pr-10 rounded-lg text-base text-slate-900 bg-white placeholder-slate-500 focus:ring-2 focus:ring-sky-500 outline-none shadow-sm"
                             placeholder="Add a quick update..."
                             value={newUpdate}
                             onChange={(e) => setNewUpdate(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && addUpdate()}
                         />
-                        <label className="absolute right-2 top-2.5 cursor-pointer text-slate-400 hover:text-sky-600">
+                        <label className="absolute right-2 top-2.5 cursor-pointer text-slate-400 hover:text-sky-600 p-1">
                              <input 
                                 type="file" 
                                 className="hidden" 
@@ -335,26 +359,26 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({ isOpen, item, cale
                         </label>
                     </div>
                     
-                    <button onClick={addUpdate} className="bg-sky-600 hover:bg-sky-700 px-4 py-3 rounded text-white shadow">
-                        <i className="fas fa-paper-plane"></i>
+                    <button onClick={addUpdate} className="bg-sky-600 hover:bg-sky-700 px-4 py-3 rounded-lg text-white shadow">
+                        <i className="fas fa-paper-plane text-lg"></i>
                     </button>
                 </div>
 
-                <div className="space-y-4 max-h-60 overflow-y-auto pr-1">
+                <div className="space-y-4 max-h-80 overflow-y-auto pr-1">
                     {formData.updates?.map(u => (
-                        <div key={u.id} className="bg-slate-50 p-3 rounded-lg text-sm border border-slate-200 shadow-sm">
+                        <div key={u.id} className="bg-slate-50 p-4 rounded-xl text-base border border-slate-200 shadow-sm">
                             <div className="text-xs text-slate-500 mb-1 font-semibold">{new Date(u.timestamp).toLocaleString()}</div>
-                            <div className="text-slate-900 mb-2">{u.content}</div>
+                            <div className="text-slate-900 mb-2 leading-relaxed">{u.content}</div>
                             
                             {/* Attachments in history */}
                             {u.attachments && u.attachments.length > 0 && (
                                 <div className="flex gap-2 mt-2 overflow-x-auto">
                                     {u.attachments.map(att => (
-                                        <a key={att.id} href={att.url} target="_blank" rel="noreferrer" className="block w-12 h-12 rounded overflow-hidden border border-slate-300">
+                                        <a key={att.id} href={att.url} target="_blank" rel="noreferrer" className="block w-16 h-16 rounded-lg overflow-hidden border border-slate-300 shadow-sm">
                                             {att.type === 'image' ? (
                                                 <img src={att.url} className="w-full h-full object-cover" />
                                             ) : (
-                                                <div className="w-full h-full bg-white flex items-center justify-center text-slate-400"><i className="fas fa-file"></i></div>
+                                                <div className="w-full h-full bg-white flex items-center justify-center text-slate-400"><i className="fas fa-file text-xl"></i></div>
                                             )}
                                         </a>
                                     ))}
@@ -370,9 +394,9 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({ isOpen, item, cale
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-3">
-            <button onClick={onClose} className="px-5 py-2 text-slate-700 hover:bg-slate-200 rounded font-medium">Cancel</button>
-            <button onClick={handleSave} className="px-5 py-2 bg-sky-600 text-white hover:bg-sky-700 rounded shadow font-medium">Save Changes</button>
+        <div className="p-4 md:p-5 border-t border-slate-200 bg-slate-50 flex justify-end gap-3 pb-safe">
+            <button onClick={onClose} className="px-6 py-3 text-slate-700 hover:bg-slate-200 rounded-lg font-medium text-base">Cancel</button>
+            <button onClick={handleSave} className="px-6 py-3 bg-sky-600 text-white hover:bg-sky-700 rounded-lg shadow-lg font-bold text-base">Save Changes</button>
         </div>
       </div>
     </div>

@@ -14,6 +14,7 @@ import { loadAllData, saveData } from './services/storage';
 const App: React.FC = () => {
   // Authentication & Loading State
   const [user, setUser] = useState<User | null>(null);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSetupComplete, setIsSetupComplete] = useState(false);
 
@@ -41,6 +42,10 @@ const App: React.FC = () => {
         setNotes(data.notes);
         setCalendars(data.calendars);
         
+        if (data.userEmail) {
+            setCurrentUserEmail(data.userEmail);
+        }
+
         if (data.user) {
           setUser(data.user);
           setIsSetupComplete(true);
@@ -97,23 +102,22 @@ const App: React.FC = () => {
   };
 
   // Auth Handlers
-  const handleLogin = () => {
-      const mockUser: User = {
-          id: '12345',
-          name: 'Manager',
-          email: 'manager@campground.com',
-          avatarUrl: 'https://ui-avatars.com/api/?name=Manager&background=0D8ABC&color=fff'
+  const handleCreateProfile = (name: string) => {
+      const newUser: User = {
+          id: Math.random().toString(),
+          name: name,
+          email: currentUserEmail || 'user@example.com',
+          avatarUrl: `https://ui-avatars.com/api/?name=${name}&background=0D8ABC&color=fff`
       };
-      setUser(mockUser);
-      saveData('user', mockUser);
-      setIsSetupComplete(true);
+      setUser(newUser);
+      saveData('user', newUser);
+      // Don't set setupComplete yet, let Wizard run
   };
 
   const handleLogout = () => {
       setUser(null);
       setIsSetupComplete(false);
-      localStorage.removeItem('lifeManagerUser'); // Force local clear
-      // In a real GAS app, we might handle this differently, but for now we just clear local state
+      localStorage.removeItem('lifeManagerUser'); 
   };
 
   // --- Main App Logic ---
@@ -152,91 +156,99 @@ const App: React.FC = () => {
   const Dashboard = () => {
     const pendingTasks = tasks.filter(t => t.status !== 'Done').length;
     const urgentTasks = tasks.filter(t => t.urgency === 'Critical' || t.urgency === 'High').length;
-    const today = new Date().toLocaleDateString();
+    const today = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
 
     return (
-      <div className="p-6 max-w-4xl mx-auto overflow-y-auto no-scrollbar pb-24">
+      <div className="p-4 md:p-8 max-w-5xl mx-auto overflow-y-auto no-scrollbar pb-32">
         <div className="mb-8 flex justify-between items-end">
             <div>
                 <h1 className="text-3xl font-bold text-slate-800">Good Morning, {user?.name}</h1>
-                <p className="text-slate-500">{today}</p>
+                <p className="text-slate-500 text-lg mt-1">{today}</p>
             </div>
-            <button onClick={handleLogout} className="text-xs text-slate-400 hover:text-red-500">Sign Out</button>
+            <button onClick={handleLogout} className="text-sm text-slate-400 hover:text-red-500 p-2">Sign Out</button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <div 
                 onClick={() => { setViewFilter('todo'); setCurrentView('braindump'); }}
-                className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 text-white shadow-lg shadow-blue-200 cursor-pointer transform hover:scale-105 transition-transform"
+                className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white shadow-lg shadow-blue-200 cursor-pointer transform active:scale-95 transition-transform"
             >
-                <div className="text-4xl font-bold mb-1">{pendingTasks}</div>
-                <div className="text-blue-100 text-sm font-medium uppercase tracking-wider flex justify-between items-center">
+                <div className="text-5xl font-bold mb-2">{pendingTasks}</div>
+                <div className="text-blue-100 text-base font-medium uppercase tracking-wider flex justify-between items-center">
                     Pending Tasks <i className="fas fa-arrow-right opacity-50"></i>
                 </div>
             </div>
             <div 
                 onClick={() => { setViewFilter('urgent'); setCurrentView('braindump'); }}
-                className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-6 text-white shadow-lg shadow-orange-200 cursor-pointer transform hover:scale-105 transition-transform"
+                className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-6 text-white shadow-lg shadow-orange-200 cursor-pointer transform active:scale-95 transition-transform"
             >
-                <div className="text-4xl font-bold mb-1">{urgentTasks}</div>
-                <div className="text-orange-100 text-sm font-medium uppercase tracking-wider flex justify-between items-center">
+                <div className="text-5xl font-bold mb-2">{urgentTasks}</div>
+                <div className="text-orange-100 text-base font-medium uppercase tracking-wider flex justify-between items-center">
                     Urgent / Critical <i className="fas fa-arrow-right opacity-50"></i>
                 </div>
             </div>
             <div 
                 onClick={() => { setViewFilter('reading'); setCurrentView('library'); }}
-                className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 text-white shadow-lg shadow-purple-200 cursor-pointer transform hover:scale-105 transition-transform"
+                className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-6 text-white shadow-lg shadow-purple-200 cursor-pointer transform active:scale-95 transition-transform"
             >
-                <div className="text-4xl font-bold mb-1">{books.filter(b => b.status === 'Reading').length}</div>
-                <div className="text-purple-100 text-sm font-medium uppercase tracking-wider flex justify-between items-center">
+                <div className="text-5xl font-bold mb-2">{books.filter(b => b.status === 'Reading').length}</div>
+                <div className="text-purple-100 text-base font-medium uppercase tracking-wider flex justify-between items-center">
                     Books in Progress <i className="fas fa-arrow-right opacity-50"></i>
                 </div>
             </div>
         </div>
 
-        <h3 className="font-bold text-xl text-slate-700 mb-4">Upcoming Events</h3>
-        <div className="space-y-3 mb-8">
+        <h3 className="font-bold text-2xl text-slate-700 mb-4">Upcoming Events</h3>
+        <div className="space-y-4 mb-8">
             {events.map(ev => (
                 <div 
                     key={ev.id} 
                     onClick={() => setSelectedItem(ev)}
-                    className="bg-white p-4 rounded-lg border-l-4 shadow-sm flex justify-between items-center cursor-pointer hover:bg-slate-50 transition-colors"
+                    className="bg-white p-5 rounded-xl border-l-8 shadow-md flex justify-between items-center cursor-pointer active:bg-slate-50 transition-colors"
                     style={{ borderLeftColor: calendars.find(c => c.id === ev.calendarId)?.color || '#3b82f6' }}
                 >
                     <div>
-                        <div className="font-bold text-slate-800">{ev.title}</div>
-                        <div className="text-sm text-slate-500">
-                             <i className="fas fa-clock mr-1"></i> {new Date(ev.when).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {ev.where}
-                             {ev.calendarId && (
-                                <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 border border-slate-200">
-                                    {calendars.find(c => c.id === ev.calendarId)?.name}
-                                </span>
-                             )}
+                        <div className="font-bold text-lg text-slate-900">{ev.title}</div>
+                        <div className="text-base text-slate-500 mt-1 flex items-center gap-2">
+                             <i className="fas fa-clock"></i> 
+                             {new Date(ev.when).toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'})}
+                             {ev.where && <span>• {ev.where}</span>}
                         </div>
+                        {ev.calendarId && (
+                            <span className="inline-block mt-2 text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-600 font-medium">
+                                {calendars.find(c => c.id === ev.calendarId)?.name}
+                            </span>
+                        )}
                     </div>
-                    <i className="fas fa-chevron-right text-slate-300"></i>
+                    <i className="fas fa-chevron-right text-slate-300 text-xl"></i>
                 </div>
             ))}
-            {events.length === 0 && <p className="text-slate-400 italic">No upcoming events.</p>}
+            {events.length === 0 && <p className="text-slate-400 italic text-lg text-center py-4 bg-slate-50 rounded-xl">No upcoming events today.</p>}
         </div>
 
-        <h3 className="font-bold text-xl text-slate-700 mb-4">Urgent Tasks</h3>
-        <div className="space-y-3">
+        <h3 className="font-bold text-2xl text-slate-700 mb-4">Urgent Tasks</h3>
+        <div className="space-y-4">
              {tasks.filter(t => t.urgency === 'Critical' || t.urgency === 'High').slice(0, 5).map(task => (
                  <div 
                     key={task.id} 
                     onClick={() => setSelectedItem(task)}
-                    className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors"
+                    className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between cursor-pointer active:bg-slate-50 transition-colors"
                  >
-                     <div>
-                         <div className="font-semibold text-slate-800">{task.shortDescription}</div>
-                         <div className="text-xs text-slate-500">{task.forWho} • {task.where || 'No location'}</div>
+                     <div className="flex-1 mr-4">
+                         <div className="font-bold text-lg text-slate-900 mb-1">{task.shortDescription}</div>
+                         <div className="text-sm text-slate-500 flex flex-wrap gap-2">
+                            <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-600 font-medium">{task.forWho}</span>
+                            {task.where && <span>• {task.where}</span>}
+                         </div>
                      </div>
-                     <span className={`text-xs px-2 py-1 rounded font-bold ${task.urgency === 'Critical' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>
+                     <span className={`text-xs px-3 py-1.5 rounded-full font-bold uppercase ${task.urgency === 'Critical' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>
                          {task.urgency}
                      </span>
                  </div>
              ))}
+             {tasks.filter(t => t.urgency === 'Critical' || t.urgency === 'High').length === 0 && (
+                 <p className="text-slate-400 italic text-lg text-center py-4 bg-slate-50 rounded-xl">No urgent tasks.</p>
+             )}
         </div>
       </div>
     );
@@ -251,7 +263,7 @@ const App: React.FC = () => {
   }
 
   if (!user) {
-      return <Login onLogin={handleLogin} />;
+      return <Login onLogin={handleCreateProfile} userEmail={currentUserEmail} />;
   }
 
   if (!isSetupComplete) {
@@ -262,7 +274,7 @@ const App: React.FC = () => {
     <div className="flex flex-col h-screen">
         <Navigation currentView={currentView} setView={handleNavigation} />
         
-        <main className="flex-1 bg-slate-50 overflow-hidden relative">
+        <main className="flex-1 bg-slate-50 overflow-hidden relative w-full">
             {currentView === 'dashboard' && <Dashboard />}
             {currentView === 'braindump' && <BrainDump tasks={tasks} setTasks={updateTasks} initialFilter={viewFilter || 'all'} onTaskClick={setSelectedItem} />}
             {currentView === 'week' && <WeekView tasks={tasks} setTasks={updateTasks} onEditTask={setSelectedItem} />}

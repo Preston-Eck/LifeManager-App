@@ -23,6 +23,7 @@ export interface AppData {
   notes: MeetingNote[];
   calendars: GoogleCalendar[];
   user?: User;
+  userEmail?: string; // New field to carry the GAS email to frontend
 }
 
 const isGAS = () => typeof window !== 'undefined' && window.google && window.google.script;
@@ -64,6 +65,20 @@ export const saveData = (type: keyof AppData, data: any): void => {
   }
 };
 
+export const initializeBackend = (): Promise<boolean> => {
+  return new Promise((resolve, reject) => {
+    if (isGAS()) {
+      window.google!.script.run
+        .withSuccessHandler(() => resolve(true))
+        .withFailureHandler((e: any) => reject(e))
+        .initializeBackend();
+    } else {
+      // Mock delay
+      setTimeout(() => resolve(true), 2000);
+    }
+  });
+}
+
 // Helper for local dev
 const getMockOrLocalData = (): AppData => {
   const get = (key: string, mock: any) => {
@@ -77,6 +92,7 @@ const getMockOrLocalData = (): AppData => {
     books: get('books', MOCK_BOOKS),
     notes: get('notes', MOCK_NOTES),
     calendars: get('calendars', MOCK_CALENDARS),
-    user: localStorage.getItem('lifeManagerUser') ? JSON.parse(localStorage.getItem('lifeManagerUser')!) : undefined
+    user: localStorage.getItem('lifeManagerUser') ? JSON.parse(localStorage.getItem('lifeManagerUser')!) : undefined,
+    userEmail: 'dev@local.test'
   };
 };

@@ -2,7 +2,11 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0f172a">
     <title>LifeManager Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet" />
@@ -18,6 +22,9 @@
                 600: '#0284c7',
                 900: '#0c4a6e',
               }
+            },
+            padding: {
+              'safe': 'env(safe-area-inset-bottom)'
             }
           }
         }
@@ -32,6 +39,10 @@
         -ms-overflow-style: none;
         scrollbar-width: none;
       }
+      /* Prevent pull-to-refresh on mobile which feels like a website */
+      body {
+        overscroll-behavior-y: none;
+      }
     </style>
   <script type="importmap">
 {
@@ -45,8 +56,8 @@
 }
 </script>
 </head>
-  <body class="bg-slate-50 text-slate-900 h-screen overflow-hidden">
-    <div id="root" class="h-full flex flex-col"></div>
+  <body class="bg-slate-50 text-slate-900 h-screen overflow-hidden w-full fixed">
+    <div id="root" class="h-full flex flex-col w-full"></div>
     <script type="module" src="/index.tsx"></script>
   </body>
 </html>
