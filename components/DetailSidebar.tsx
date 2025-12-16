@@ -8,9 +8,10 @@ interface DetailSidebarProps {
   onClose: () => void;
   onSave: (updatedItem: Task | Event) => void;
   onCreateNote?: (event: Event) => void;
+  onDelete?: (item: Task | Event) => void;
 }
 
-export const DetailSidebar: React.FC<DetailSidebarProps> = ({ isOpen, item, calendars, onClose, onSave, onCreateNote }) => {
+export const DetailSidebar: React.FC<DetailSidebarProps> = ({ isOpen, item, calendars, onClose, onSave, onCreateNote, onDelete }) => {
   const [formData, setFormData] = useState<Task | Event | null>(null);
   const [newUpdate, setNewUpdate] = useState('');
   const [newUpdateAttachments, setNewUpdateAttachments] = useState<Attachment[]>([]);
@@ -31,6 +32,15 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({ isOpen, item, cale
         onClose();
     }
   };
+
+  const handleDelete = () => {
+      if (onDelete && formData) {
+          if (confirm('Are you sure you want to delete this item?')) {
+              onDelete(formData);
+              onClose();
+          }
+      }
+  }
 
   const addUpdate = () => {
     if (!newUpdate.trim() && newUpdateAttachments.length === 0) return;
@@ -66,8 +76,42 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({ isOpen, item, cale
     }
   };
 
+  // Handle main attachments (for Tasks mostly)
+  const handleMainFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0] && isTask(formData)) {
+        const file = e.target.files[0];
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const result = reader.result as string;
+            const newAttachment: Attachment = {
+                id: Math.random().toString(),
+                name: file.name,
+                type: file.type.startsWith('image') ? 'image' : 'file',
+                url: result
+            };
+            const currentAttachments = (formData as Task).attachments || [];
+            setFormData({ ...formData, attachments: [...currentAttachments, newAttachment] });
+        };
+        reader.readAsDataURL(file);
+    }
+  };
+
+  const removeMainAttachment = (attId: string) => {
+      if (isTask(formData)) {
+          const currentAttachments = formData.attachments || [];
+          setFormData({ ...formData, attachments: currentAttachments.filter(a => a.id !== attId) });
+      }
+  };
+
   const handleChange = (field: string, value: any) => {
-    setFormData({ ...formData, [field]: value });
+    // If status changes to DONE, set completedAt
+    if (field === 'status' && isTask(formData)) {
+        const newStatus = value as TaskStatus;
+        const completedAt = newStatus === TaskStatus.DONE ? new Date().toISOString() : undefined;
+        setFormData({ ...formData, [field]: value, completedAt });
+    } else {
+        setFormData({ ...formData, [field]: value });
+    }
   };
 
   const handleDurationChange = (type: 'hours' | 'minutes', val: string) => {
@@ -80,7 +124,6 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({ isOpen, item, cale
       });
   };
 
-  // Increased padding (p-3) and text-base (16px) to prevent iOS zoom and improve readability
   const commonInputClass = "w-full border border-slate-300 p-3 rounded-lg focus:ring-2 focus:ring-sky-500 outline-none text-slate-900 bg-white text-base shadow-sm";
   const labelClass = "block text-sm font-bold text-slate-700 uppercase mb-1.5 tracking-wide";
 
@@ -151,14 +194,27 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({ isOpen, item, cale
                             </div>
                         </div>
                         <div>
-                            <label className={labelClass}>For Who/What</label>
+                            <label className={labelClass}>Context (Work/Home)</label>
                             <input 
                                 className={commonInputClass}
                                 value={formData.forWho || ''}
                                 onChange={(e) => handleChange('forWho', e.target.value)}
-                                placeholder="e.g. Work, Family"
+                                placeholder="e.g. Work: MGC"
                             />
                         </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className={labelClass}>Assignee (Who)</label>
+                            <input 
+                                className={commonInputClass}
+                                value={formData.assignee || ''}
+                                onChange={(e) => handleChange('assignee', e.target.value)}
+                                placeholder="e.g. Me, John"
+                            />
+                        </div>
+                        {/* Intentionally left blank or can add more fields later */}
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
@@ -227,7 +283,7 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({ isOpen, item, cale
                              <input 
                                 type="number" 
                                 min="0" 
-                                className="w-full p-3 outline-none text-slate-900 text-base rounded-lg"
+                                className="w-full p-3 outline-none text-slate-900 bg-transparent text-base rounded-lg"
                                 value={formData.duration?.hours || 0}
                                 onChange={(e) => handleDurationChange('hours', e.target.value)}
                              />
@@ -238,7 +294,7 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({ isOpen, item, cale
                                 type="number" 
                                 min="0" 
                                 max="59"
-                                className="w-full p-3 outline-none text-slate-900 text-base rounded-lg"
+                                className="w-full p-3 outline-none text-slate-900 bg-transparent text-base rounded-lg"
                                 value={formData.duration?.minutes || 0}
                                 onChange={(e) => handleDurationChange('minutes', e.target.value)}
                              />
@@ -287,6 +343,40 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({ isOpen, item, cale
                     placeholder="Add detailed notes here..."
                 />
             </div>
+
+            {/* Attachments Section (Main) */}
+            {isTask(formData) && (
+                <div>
+                    <label className={labelClass}>Attachments</label>
+                    <div className="flex flex-wrap gap-2 mb-2">
+                         {formData.attachments?.map((att) => (
+                             <div key={att.id} className="relative w-24 h-24 border rounded-lg overflow-hidden flex-shrink-0 group">
+                                {att.type === 'image' ? (
+                                    <img src={att.url} className="w-full h-full object-cover" />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center bg-slate-100 text-slate-500"><i className="fas fa-file text-2xl"></i></div>
+                                )}
+                                <button 
+                                    onClick={() => removeMainAttachment(att.id)}
+                                    className="absolute top-1 right-1 bg-red-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                                >&times;</button>
+                             </div>
+                         ))}
+                         
+                         <label className="w-24 h-24 border-2 border-dashed border-slate-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-sky-500 hover:text-sky-500 text-slate-400 transition bg-white">
+                             <i className="fas fa-plus text-xl mb-1"></i>
+                             <span className="text-[10px] uppercase font-bold">Upload</span>
+                             <input 
+                                type="file" 
+                                className="hidden" 
+                                accept="image/*,application/pdf"
+                                capture="environment"
+                                onChange={handleMainFileUpload}
+                             />
+                         </label>
+                    </div>
+                </div>
+            )}
 
             {/* Calendar Sync Selection */}
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
@@ -394,9 +484,21 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({ isOpen, item, cale
         </div>
 
         {/* Footer */}
-        <div className="p-4 md:p-5 border-t border-slate-200 bg-slate-50 flex justify-end gap-3 pb-safe">
-            <button onClick={onClose} className="px-6 py-3 text-slate-700 hover:bg-slate-200 rounded-lg font-medium text-base">Cancel</button>
-            <button onClick={handleSave} className="px-6 py-3 bg-sky-600 text-white hover:bg-sky-700 rounded-lg shadow-lg font-bold text-base">Save Changes</button>
+        <div className="p-4 md:p-5 border-t border-slate-200 bg-slate-50 flex justify-between items-center pb-safe">
+            {onDelete ? (
+                <button 
+                    onClick={handleDelete}
+                    className="text-red-500 hover:text-red-700 text-sm font-bold flex items-center gap-1 px-2"
+                >
+                    <i className="fas fa-trash"></i> Delete
+                </button>
+            ) : (
+                <div></div>
+            )}
+            <div className="flex gap-3">
+                <button onClick={onClose} className="px-4 py-3 text-slate-700 hover:bg-slate-200 rounded-lg font-medium text-base">Cancel</button>
+                <button onClick={handleSave} className="px-6 py-3 bg-sky-600 text-white hover:bg-sky-700 rounded-lg shadow-lg font-bold text-base">Save Changes</button>
+            </div>
         </div>
       </div>
     </div>

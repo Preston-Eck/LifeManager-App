@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
-import { GoogleCalendar } from '../types';
+import { GoogleCalendar, ThemePreferences } from '../types';
 
 interface SettingsProps {
   calendars: GoogleCalendar[];
   setCalendars: React.Dispatch<React.SetStateAction<GoogleCalendar[]>>;
+  theme: ThemePreferences;
+  setTheme: (theme: ThemePreferences) => void;
 }
 
-export const Settings: React.FC<SettingsProps> = ({ calendars, setCalendars }) => {
+export const Settings: React.FC<SettingsProps> = ({ calendars, setCalendars, theme, setTheme }) => {
   const [newAccountEmail, setNewAccountEmail] = useState('');
 
   // Group calendars by account
@@ -14,7 +16,6 @@ export const Settings: React.FC<SettingsProps> = ({ calendars, setCalendars }) =
 
   const handleAddAccount = () => {
     if (!newAccountEmail) return;
-    // Simulate adding an account and fetching its calendars
     const newCals: GoogleCalendar[] = [
         { id: Math.random().toString(), name: 'Primary', color: '#4285F4', accountId: newAccountEmail },
         { id: Math.random().toString(), name: 'Birthdays', color: '#A79B8E', accountId: newAccountEmail }
@@ -31,10 +32,84 @@ export const Settings: React.FC<SettingsProps> = ({ calendars, setCalendars }) =
       }
   };
 
+  const colors = [
+    { name: 'Sky', value: 'sky', hex: '#0ea5e9' },
+    { name: 'Blue', value: 'blue', hex: '#3b82f6' },
+    { name: 'Indigo', value: 'indigo', hex: '#6366f1' },
+    { name: 'Purple', value: 'purple', hex: '#a855f7' },
+    { name: 'Emerald', value: 'emerald', hex: '#10b981' },
+    { name: 'Rose', value: 'rose', hex: '#f43f5e' },
+    { name: 'Slate', value: 'slate', hex: '#64748b' },
+  ];
+
   return (
     <div className="p-6 max-w-4xl mx-auto overflow-y-auto no-scrollbar pb-24 h-full">
       <h1 className="text-3xl font-bold text-slate-800 mb-2">Settings</h1>
-      <p className="text-slate-500 mb-8">Manage your Google Accounts and Integrations</p>
+      
+      {/* Appearance Settings */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
+        <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+            <i className="fas fa-paint-brush text-purple-500"></i> Appearance
+        </h2>
+        
+        <div className="mb-6">
+            <label className="block text-sm font-bold text-slate-700 mb-3">Accent Color</label>
+            <div className="flex flex-wrap gap-3">
+                {colors.map((c) => (
+                    <button
+                        key={c.value}
+                        onClick={() => setTheme({...theme, accentColor: c.value as any})}
+                        className={`w-10 h-10 rounded-full shadow-sm transition-transform hover:scale-110 flex items-center justify-center ${theme.accentColor === c.value ? 'ring-2 ring-offset-2 ring-slate-400' : ''}`}
+                        style={{ backgroundColor: c.hex }}
+                        title={c.name}
+                    >
+                        {theme.accentColor === c.value && <i className="fas fa-check text-white"></i>}
+                    </button>
+                ))}
+            </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">Text Size</label>
+                <div className="flex bg-slate-100 p-1 rounded-lg">
+                    {['small', 'normal', 'large'].map((size) => (
+                        <button
+                            key={size}
+                            onClick={() => setTheme({...theme, fontSize: size as any})}
+                            className={`flex-1 py-2 rounded-md text-sm font-medium capitalize transition ${theme.fontSize === size ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}
+                        >
+                            {size}
+                        </button>
+                    ))}
+                </div>
+            </div>
+            
+            <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">Background Color</label>
+                <div className="flex bg-slate-100 p-1 rounded-lg">
+                    <button
+                        onClick={() => setTheme({...theme, bgColor: '#f8fafc'})} // slate-50
+                        className={`flex-1 py-2 rounded-md text-sm font-medium transition ${theme.bgColor === '#f8fafc' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}
+                    >
+                        Light
+                    </button>
+                    <button
+                        onClick={() => setTheme({...theme, bgColor: '#f0f9ff'})} // sky-50
+                        className={`flex-1 py-2 rounded-md text-sm font-medium transition ${theme.bgColor === '#f0f9ff' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}
+                    >
+                        Cool
+                    </button>
+                     <button
+                        onClick={() => setTheme({...theme, bgColor: '#fffbeb'})} // amber-50
+                        className={`flex-1 py-2 rounded-md text-sm font-medium transition ${theme.bgColor === '#fffbeb' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}
+                    >
+                        Warm
+                    </button>
+                </div>
+            </div>
+        </div>
+      </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
         <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
@@ -83,9 +158,6 @@ export const Settings: React.FC<SettingsProps> = ({ calendars, setCalendars }) =
                     <i className="fab fa-google"></i> Connect
                 </button>
             </div>
-            <p className="text-xs text-slate-500 mt-2">
-                This will redirect you to Google Login to authorize Calendar access.
-            </p>
         </div>
       </div>
 
@@ -100,13 +172,6 @@ export const Settings: React.FC<SettingsProps> = ({ calendars, setCalendars }) =
                      <div className="text-xs text-slate-500">Last synced: Just now</div>
                  </div>
                  <button className="text-sky-600 font-medium text-sm">Sync Now</button>
-             </div>
-             <div className="flex justify-between items-center p-3 bg-slate-50 rounded">
-                 <div>
-                     <div className="font-semibold text-slate-700">Export Data</div>
-                     <div className="text-xs text-slate-500">Download a JSON copy of all tasks and notes</div>
-                 </div>
-                 <button className="text-slate-600 font-medium text-sm">Download</button>
              </div>
              <div className="flex justify-between items-center p-3 bg-red-50 rounded border border-red-100">
                  <div>

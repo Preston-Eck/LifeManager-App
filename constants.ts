@@ -1,5 +1,5 @@
 
-import { Task, TaskStatus, Urgency, Importance, Book, BookStatus, Event, MeetingNote, GoogleCalendar } from './types';
+import { Task, TaskStatus, Urgency, Importance, Book, BookStatus, Event, MeetingNote, GoogleCalendar, Person, RelationshipType, RelationshipContext } from './types';
 
 export const MOCK_CALENDARS: GoogleCalendar[] = [
   { id: 'cal1', name: 'Personal', color: '#4285F4', accountId: 'dad@gmail.com' },
@@ -90,4 +90,121 @@ export const MOCK_NOTES: MeetingNote[] = [
     linkedTaskIds: ['2'],
     linkedEventIds: []
   }
+];
+
+// --- UDRG Hierarchy Example ---
+export const MOCK_PEOPLE: Person[] = [
+    // Businesses / Entities
+    {
+        id: 'b_udrg',
+        contactType: 'business',
+        name: 'Ugly Duckling Recreation Group (UDRG)',
+        role: 'Parent Company',
+        relationships: [
+            { personId: 'b_mgc', type: RelationshipType.CHILD, context: RelationshipContext.WORK },
+            { personId: 'b_alg', type: RelationshipType.CHILD, context: RelationshipContext.WORK },
+            { personId: 'p_ben', type: RelationshipType.CHILD, context: RelationshipContext.WORK } // Ben works for UDRG
+        ],
+        interactionLogs: [],
+        customFields: []
+    },
+    {
+        id: 'b_mgc',
+        contactType: 'business',
+        name: 'Mercer/Grove City KOA (MGC)',
+        role: 'Campground',
+        relationships: [
+            { personId: 'b_udrg', type: RelationshipType.PARENT, context: RelationshipContext.WORK }
+        ],
+        interactionLogs: [],
+        customFields: []
+    },
+    {
+        id: 'b_alg',
+        contactType: 'business',
+        name: 'Allegheny I-80 Campground (ALG)',
+        role: 'Campground',
+        relationships: [
+            { personId: 'b_udrg', type: RelationshipType.PARENT, context: RelationshipContext.WORK }
+        ],
+        interactionLogs: [],
+        customFields: []
+    },
+
+    // People
+    {
+        id: 'p_ben',
+        contactType: 'person',
+        name: 'Ben',
+        role: 'General Manager',
+        organization: 'UDRG',
+        relationships: [
+            { personId: 'b_udrg', type: RelationshipType.PARENT, context: RelationshipContext.WORK }, // Employer
+            { personId: 'p_reg_mgr', type: RelationshipType.CHILD, context: RelationshipContext.WORK } // Manages Regional Mgr
+        ],
+        addressHistory: [
+            { id: 'addr1', type: 'Current', address: '123 Campground Lane', startDate: '2020-01-01' }
+        ],
+        employmentHistory: [
+             { id: 'job1', company: 'UDRG', title: 'General Manager', startDate: '2019-05-01' }
+        ],
+        favoriteColors: ['Blue', 'Forest Green'],
+        favoriteRestaurants: ['Texas Roadhouse'],
+        interactionLogs: [],
+        customFields: []
+    },
+    {
+        id: 'p_reg_mgr',
+        contactType: 'person',
+        name: 'Regional Manager (Rachel)',
+        role: 'Regional Manager',
+        department: 'Operations',
+        relationships: [
+            { personId: 'p_ben', type: RelationshipType.PARENT, context: RelationshipContext.WORK },
+            { personId: 'p_fac_mgr_mgc', type: RelationshipType.CHILD, context: RelationshipContext.WORK }, // Manages Fac Mgr
+            { personId: 'p_ops_mgr_mgc', type: RelationshipType.CHILD, context: RelationshipContext.WORK }  // Manages Ops Mgr
+        ],
+        interactionLogs: [],
+        customFields: []
+    },
+    {
+        id: 'p_fac_mgr_mgc',
+        contactType: 'person',
+        name: 'Facilities Mgr (Frank)',
+        role: 'Facilities Manager',
+        organization: 'MGC',
+        relationships: [
+            { personId: 'p_reg_mgr', type: RelationshipType.PARENT, context: RelationshipContext.WORK }, // Reports to Rachel
+            { personId: 'b_mgc', type: RelationshipType.PARENT, context: RelationshipContext.WORK }, // Employed by MGC
+            { personId: 'p_staff_1', type: RelationshipType.CHILD, context: RelationshipContext.WORK }
+        ],
+        favoriteFood: { entree: 'Steak', dessert: 'Cheesecake' },
+        interactionLogs: [],
+        customFields: []
+    },
+    {
+        id: 'p_ops_mgr_mgc',
+        contactType: 'person',
+        name: 'Operations Mgr (Olive)',
+        role: 'Operations Manager',
+        organization: 'MGC',
+        relationships: [
+            { personId: 'p_reg_mgr', type: RelationshipType.PARENT, context: RelationshipContext.WORK },
+            { personId: 'b_mgc', type: RelationshipType.PARENT, context: RelationshipContext.WORK }
+        ],
+        interactionLogs: [],
+        customFields: []
+    },
+    {
+        id: 'p_staff_1',
+        contactType: 'person',
+        name: 'Steve Staff',
+        role: 'Maintenance Crew',
+        organization: 'MGC',
+        relationships: [
+            { personId: 'p_fac_mgr_mgc', type: RelationshipType.PARENT, context: RelationshipContext.WORK }
+        ],
+        interactionLogs: [],
+        customFields: []
+    }
 ];

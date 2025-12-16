@@ -46,19 +46,31 @@ export const Login: React.FC<LoginProps> = ({ onLogin, userEmail }) => {
             Get Started
         </button>
 
-        <div className="mt-8 text-left bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-            <h4 className="font-bold text-yellow-800 text-xs uppercase mb-2">First Time Setup?</h4>
-            <p className="text-xs text-yellow-800 mb-2">
-                If you see a screen saying <strong>"This app isn't verified"</strong>:
-            </p>
-            <ol className="list-decimal list-inside text-xs text-yellow-800 space-y-1 ml-1">
-                <li>Click <strong>Advanced</strong> (bottom left).</li>
-                <li>Click <strong>Go to LifeManager Pro (unsafe)</strong>.</li>
-                <li>Click <strong>Allow</strong> to grant permissions.</li>
-            </ol>
-            <p className="text-[10px] text-yellow-600 mt-2 italic">
-                (This appears because this is a private app you created, not published to the store).
-            </p>
+        <div className="mt-8 text-left space-y-4">
+            {/* Verification Help */}
+            <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                <h4 className="font-bold text-yellow-800 text-xs uppercase mb-2">App Not Verified?</h4>
+                <p className="text-xs text-yellow-800 mb-2">
+                    If you see "This app isn't verified":
+                </p>
+                <ol className="list-decimal list-inside text-xs text-yellow-800 space-y-1 ml-1">
+                    <li>Click <strong>Advanced</strong> (bottom left).</li>
+                    <li>Click <strong>Go to LifeManager Pro (unsafe)</strong>.</li>
+                    <li>Click <strong>Allow</strong>.</li>
+                </ol>
+            </div>
+
+            {/* Login Loop Help */}
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                 <h4 className="font-bold text-blue-800 text-xs uppercase mb-2">Login Loop / Not Loading?</h4>
+                 <p className="text-xs text-blue-800 mb-2">
+                     Google Apps Script has a known issue with multiple logged-in accounts.
+                 </p>
+                 <ul className="list-disc list-inside text-xs text-blue-800 space-y-1 ml-1">
+                     <li><strong>Best Fix:</strong> Use Incognito Mode.</li>
+                     <li><strong>Alternative:</strong> Log out of all other Google accounts in this browser.</li>
+                 </ul>
+            </div>
         </div>
       </div>
     </div>

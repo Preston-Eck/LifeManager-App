@@ -1,5 +1,5 @@
-import { Task, Event, Book, MeetingNote, GoogleCalendar, User } from '../types';
-import { MOCK_TASKS, MOCK_BOOKS, MOCK_EVENTS, MOCK_NOTES, MOCK_CALENDARS } from '../constants';
+import { Task, Event, Book, MeetingNote, GoogleCalendar, User, Person } from '../types';
+import { MOCK_TASKS, MOCK_BOOKS, MOCK_EVENTS, MOCK_NOTES, MOCK_CALENDARS, MOCK_PEOPLE } from '../constants';
 
 // Define the Google Apps Script global object types
 declare global {
@@ -21,6 +21,7 @@ export interface AppData {
   events: Event[];
   books: Book[];
   notes: MeetingNote[];
+  people: Person[];
   calendars: GoogleCalendar[];
   user?: User;
   userEmail?: string;
@@ -92,6 +93,7 @@ const getMockOrLocalData = (): AppData => {
     events: get('events', MOCK_EVENTS),
     books: get('books', MOCK_BOOKS),
     notes: get('notes', MOCK_NOTES),
+    people: get('people', MOCK_PEOPLE),
     calendars: get('calendars', MOCK_CALENDARS),
     user: localStorage.getItem('lifeManagerUser') ? JSON.parse(localStorage.getItem('lifeManagerUser')!) : undefined,
     userEmail: 'dev@local.test'

@@ -42,8 +42,9 @@ export const BrainDump: React.FC<BrainDumpProps> = ({ tasks, setTasks, initialFi
     }
   };
 
+  // NEW FORMULA: Urgency * (Importance ^ 2)
   const calculatePriority = (imp: Importance, urg: Urgency) => {
-    return getScaleValue(imp) * (2 * getScaleValue(urg));
+    return getScaleValue(urg) * Math.pow(getScaleValue(imp), 2);
   };
 
   const handleSmartSubmit = async () => {
@@ -137,6 +138,13 @@ export const BrainDump: React.FC<BrainDumpProps> = ({ tasks, setTasks, initialFi
         setDateSuggestionMessage(null);
       }
     }
+  };
+
+  const toggleTaskComplete = (taskId: string, currentStatus: TaskStatus) => {
+      const newStatus = currentStatus === TaskStatus.DONE ? TaskStatus.TODO : TaskStatus.DONE;
+      const completedAt = newStatus === TaskStatus.DONE ? new Date().toISOString() : undefined;
+      
+      setTasks(prev => prev.map(t => t.id === taskId ? {...t, status: newStatus, completedAt} : t));
   };
 
   const filteredTasks = tasks.filter(t => {
@@ -329,7 +337,7 @@ export const BrainDump: React.FC<BrainDumpProps> = ({ tasks, setTasks, initialFi
                <span className="text-sm font-bold text-slate-600 uppercase">Priority Score</span>
                <span className="text-xl font-bold text-slate-900">
                   {calculatePriority(newTask.importance || Importance.LOW, newTask.urgency || Urgency.LOW)} 
-                  <span className="text-sm text-slate-500 font-normal ml-1">/ 32</span>
+                  <span className="text-sm text-slate-500 font-normal ml-1">/ 64</span>
                </span>
             </div>
 
@@ -386,116 +394,110 @@ export const BrainDump: React.FC<BrainDumpProps> = ({ tasks, setTasks, initialFi
         ))}
       </div>
 
-      {/* Task List */}
-      <div className="space-y-4">
+      {/* Task List - Compact Mobile-First Design */}
+      <div className="space-y-3">
         {sortedTasks.map(task => {
           const priorityScore = calculatePriority(task.importance, task.urgency);
           return (
             <div 
                 key={task.id} 
                 onClick={() => onTaskClick?.(task)}
-                className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col md:flex-row gap-4 cursor-pointer active:bg-slate-50 transition-colors"
+                className="bg-white p-3 rounded-lg shadow-sm border border-slate-200 flex gap-3 cursor-pointer active:bg-slate-50 transition-colors"
             >
-              <div className="flex-1">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                     <span className="w-10 h-10 rounded-full bg-slate-800 text-white flex items-center justify-center text-sm font-bold flex-shrink-0" title="Priority Score">
-                        {priorityScore}
-                     </span>
-                     <h3 className="font-bold text-lg text-slate-800 leading-tight">{task.shortDescription}</h3>
-                  </div>
-                  <div className={`text-xs px-2.5 py-1 rounded-full font-bold uppercase tracking-wider whitespace-nowrap ml-2 ${
-                      task.urgency === Urgency.CRITICAL ? 'bg-red-100 text-red-800' :
-                      task.urgency === Urgency.HIGH ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'
-                  }`}>
-                      {task.urgency}
-                  </div>
-                </div>
-                <p className="text-base text-slate-600 mt-2 ml-12 line-clamp-2">{task.longDescription || 'No details provided.'}</p>
-                
-                <div className="flex flex-wrap gap-2 mt-4 ml-12 text-xs font-medium text-slate-600">
-                  <span className="bg-slate-100 px-3 py-1.5 rounded-md flex items-center border border-slate-200">
-                      <i className="fas fa-user mr-2 text-slate-400"></i> {task.forWho}
-                  </span>
-                  {task.where && (
-                      <span className="bg-slate-100 px-3 py-1.5 rounded-md flex items-center border border-slate-200">
-                          <i className="fas fa-map-marker-alt mr-2 text-slate-400"></i> {task.where}
-                      </span>
-                  )}
-                  {task.when && (
-                      <span className="bg-blue-50 text-blue-700 px-3 py-1.5 rounded-md flex items-center border border-blue-100">
-                          <i className="fas fa-calendar mr-2"></i> {new Date(task.when).toLocaleDateString()}
-                      </span>
-                  )}
-                  {task.linkedEmail && (
-                      <a 
-                          href={task.linkedEmail.startsWith('http') ? task.linkedEmail : `https://mail.google.com/mail/u/0/#search/${encodeURIComponent(task.linkedEmail)}`}
-                          target="_blank"
-                          rel="noreferrer" 
-                          className="bg-yellow-50 text-yellow-700 px-3 py-1.5 rounded-md flex items-center hover:bg-yellow-100 border border-yellow-200 transition-colors group/link"
-                          onClick={(e) => e.stopPropagation()}
-                      >
-                          <i className="fas fa-envelope mr-2"></i> 
-                          <span className="truncate max-w-[150px] inline-block align-bottom">
-                            {task.linkedEmail.startsWith('http') ? 'View Email' : task.linkedEmail}
-                          </span>
-                      </a>
-                  )}
-                </div>
-
-                {/* Attachments Display */}
-                {task.attachments.length > 0 && (
-                    <div className="mt-4 ml-12 flex gap-3 overflow-x-auto pb-2">
-                        {task.attachments.map(att => (
-                            <a 
-                                key={att.id} 
-                                href={att.url} 
-                                target="_blank" 
-                                rel="noreferrer" 
-                                className="block w-20 h-20 rounded-lg overflow-hidden border border-slate-200 relative shadow-sm flex-shrink-0"
-                                onClick={(e) => e.stopPropagation()}
-                            >
-                                {att.type === 'image' ? (
-                                    <img src={att.url} alt={att.name} className="w-full h-full object-cover" />
-                                ) : (
-                                    <div className="w-full h-full bg-slate-100 flex items-center justify-center text-slate-400">
-                                        <i className="fas fa-file text-2xl"></i>
-                                    </div>
-                                )}
-                            </a>
-                        ))}
-                    </div>
-                )}
-              </div>
-
+              {/* Left Sidebar: Priority & Actions (Vertically Stacked) */}
               <div 
-                className="flex md:flex-col justify-end gap-3 border-t md:border-t-0 md:border-l border-slate-100 pt-3 md:pt-0 md:pl-4"
+                className="flex flex-col items-center gap-3 border-r border-slate-100 pr-3 flex-shrink-0 pt-1" 
                 onClick={(e) => e.stopPropagation()}
               >
-                  {/* Attachment Button */}
-                  <label className="cursor-pointer text-slate-400 hover:text-sky-600 p-2 flex items-center justify-center bg-slate-50 md:bg-transparent rounded">
-                      <input 
-                          type="file" 
-                          className="hidden" 
-                          accept="image/*,application/pdf"
-                          capture="environment"
-                          onChange={(e) => handleFileUpload(e, task.id)}
-                      />
-                      <i className="fas fa-paperclip fa-lg"></i>
-                  </label>
+                  {/* Priority Badge */}
+                  <span 
+                    className="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center text-xs font-bold shadow-sm ring-2 ring-slate-100" 
+                    title="Priority Score"
+                  >
+                      {priorityScore}
+                  </span>
+
+                  {/* Vertical Action Bar - Complete Only */}
+                  <div className="flex flex-col gap-2 mt-1">
+                      <button 
+                          onClick={() => toggleTaskComplete(task.id, task.status)}
+                          className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors shadow-sm border border-slate-100 ${task.status === TaskStatus.DONE ? 'bg-green-100 text-green-600' : 'bg-white text-slate-400 hover:text-green-500 hover:bg-green-50'}`}
+                          title="Complete"
+                      >
+                          <i className="fas fa-check text-xs"></i>
+                      </button>
+                  </div>
+              </div>
+
+              {/* Main Content Area */}
+              <div className="flex-1 min-w-0 py-1">
+                  <div className="flex justify-between items-start mb-1 gap-2">
+                      <h3 className={`font-bold text-sm leading-snug text-slate-800 line-clamp-2 ${task.status === TaskStatus.DONE ? 'line-through text-slate-400' : ''}`}>
+                        {task.shortDescription}
+                      </h3>
+                      <div className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider whitespace-nowrap flex-shrink-0 ${
+                          task.urgency === Urgency.CRITICAL ? 'bg-red-100 text-red-800' :
+                          task.urgency === Urgency.HIGH ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'
+                      }`}>
+                          {task.urgency}
+                      </div>
+                  </div>
                   
-                  <button 
-                      onClick={() => setTasks(prev => prev.map(t => t.id === task.id ? {...t, status: TaskStatus.DONE} : t))}
-                      className={`p-2 rounded flex items-center justify-center ${task.status === TaskStatus.DONE ? 'bg-green-100 text-green-600' : 'bg-slate-50 text-slate-300 hover:text-green-500'}`}
-                  >
-                      <i className="fas fa-check-circle fa-lg"></i>
-                  </button>
-                  <button 
-                      className="p-2 text-slate-300 hover:text-red-500 rounded flex items-center justify-center bg-slate-50 md:bg-transparent hover:bg-red-50"
-                      onClick={() => setTasks(prev => prev.filter(t => t.id !== task.id))}
-                  >
-                      <i className="fas fa-trash fa-lg"></i>
-                  </button>
+                  {task.longDescription && (
+                    <p className="text-xs text-slate-500 line-clamp-2 mb-2 leading-relaxed">{task.longDescription}</p>
+                  )}
+
+                  {/* Metadata Row */}
+                  <div className="flex flex-wrap gap-2 text-[10px] font-medium text-slate-500 mb-2">
+                      <span className="bg-slate-50 px-2 py-1 rounded flex items-center border border-slate-100">
+                          <i className="fas fa-user mr-1.5 text-slate-400"></i> {task.forWho}
+                      </span>
+                      {task.where && (
+                          <span className="bg-slate-50 px-2 py-1 rounded flex items-center border border-slate-100">
+                              <i className="fas fa-map-marker-alt mr-1.5 text-slate-400"></i> {task.where}
+                          </span>
+                      )}
+                      {task.when && (
+                          <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded flex items-center border border-blue-100">
+                              <i className="fas fa-calendar mr-1.5"></i> {new Date(task.when).toLocaleDateString()}
+                          </span>
+                      )}
+                      {task.linkedEmail && (
+                          <a 
+                              href={task.linkedEmail.startsWith('http') ? task.linkedEmail : `https://mail.google.com/mail/u/0/#search/${encodeURIComponent(task.linkedEmail)}`}
+                              target="_blank"
+                              rel="noreferrer" 
+                              className="bg-yellow-50 text-yellow-700 px-2 py-1 rounded flex items-center hover:bg-yellow-100 border border-yellow-200 transition-colors group/link"
+                              onClick={(e) => e.stopPropagation()}
+                          >
+                              <i className="fas fa-envelope mr-1.5"></i> 
+                              <span className="truncate max-w-[100px]">Email</span>
+                          </a>
+                      )}
+                  </div>
+
+                  {/* Attachments (View Only - Editing moved to DetailSidebar) */}
+                  {task.attachments.length > 0 && (
+                      <div className="flex gap-2 overflow-x-auto pb-1" onClick={(e) => e.stopPropagation()}>
+                          {task.attachments.map(att => (
+                              <a 
+                                  key={att.id} 
+                                  href={att.url} 
+                                  target="_blank" 
+                                  rel="noreferrer" 
+                                  className="block w-10 h-10 rounded overflow-hidden border border-slate-200 relative shadow-sm flex-shrink-0"
+                              >
+                                  {att.type === 'image' ? (
+                                      <img src={att.url} alt={att.name} className="w-full h-full object-cover" />
+                                  ) : (
+                                      <div className="w-full h-full bg-slate-50 flex items-center justify-center text-slate-300">
+                                          <i className="fas fa-file text-xs"></i>
+                                      </div>
+                                  )}
+                              </a>
+                          ))}
+                      </div>
+                  )}
               </div>
             </div>
           );
@@ -503,10 +505,10 @@ export const BrainDump: React.FC<BrainDumpProps> = ({ tasks, setTasks, initialFi
 
         {filteredTasks.length === 0 && (
             <div className="text-center py-12 text-slate-400">
-                <div className="bg-slate-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <i className="fas fa-clipboard-check text-4xl text-slate-300"></i>
+                <div className="bg-slate-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i className="fas fa-clipboard-check text-2xl text-slate-300"></i>
                 </div>
-                <p className="text-lg">No tasks found in this view.</p>
+                <p className="text-sm">No tasks found in this view.</p>
             </div>
         )}
       </div>

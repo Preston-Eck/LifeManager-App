@@ -1,19 +1,58 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { Task, TaskStatus, Importance, Urgency } from '../types';
 
 interface WeekViewProps {
   tasks: Task[];
   setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
   onEditTask: (task: Task) => void;
+  accentColor?: string;
 }
 
-export const WeekView: React.FC<WeekViewProps> = ({ tasks, setTasks, onEditTask }) => {
+export const WeekView: React.FC<WeekViewProps> = ({ tasks, setTasks, onEditTask, accentColor = 'sky' }) => {
   const [selectedTask, setSelectedTask] = useState<string | null>(null);
   
   // View Configuration State
   const [baseDate, setBaseDate] = useState(new Date());
-  const [startDayOfWeek, setStartDayOfWeek] = useState(0); // 0 = Sunday, 1 = Monday, 6 = Saturday
+  const [startDayOfWeek, setStartDayOfWeek] = useState(0); 
   const [isTimeGridView, setIsTimeGridView] = useState(true);
+  
+  // Zoom / Pinch State
+  const [hourHeight, setHourHeight] = useState(60);
+  const touchStartDist = useRef<number | null>(null);
+  const startHeight = useRef<number>(60);
+
+  // Constants
+  const START_HOUR = 6; 
+  const END_HOUR = 22; 
+  const TOTAL_HOURS = END_HOUR - START_HOUR;
+
+  // Touch Handlers for Pinch Zoom
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+        const dist = Math.hypot(
+            e.touches[0].clientX - e.touches[1].clientX,
+            e.touches[0].clientY - e.touches[1].clientY
+        );
+        touchStartDist.current = dist;
+        startHeight.current = hourHeight;
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 2 && touchStartDist.current) {
+        const dist = Math.hypot(
+            e.touches[0].clientX - e.touches[1].clientX,
+            e.touches[0].clientY - e.touches[1].clientY
+        );
+        const scale = dist / touchStartDist.current;
+        const newHeight = Math.min(Math.max(startHeight.current * scale, 30), 120); // Clamp 30px to 120px
+        setHourHeight(newHeight);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    touchStartDist.current = null;
+  };
 
   // Helper: Priority Calculation
   const getScaleValue = (val: string) => {
@@ -25,48 +64,33 @@ export const WeekView: React.FC<WeekViewProps> = ({ tasks, setTasks, onEditTask 
       default: return 1;
     }
   };
-  const calculatePriority = (t: Task) => getScaleValue(t.importance) * (2 * getScaleValue(t.urgency));
+  
+  // New Formula: Urgency * (Importance ^ 2)
+  const calculatePriority = (t: Task) => getScaleValue(t.urgency) * Math.pow(getScaleValue(t.importance), 2);
 
-  // Sorting Logic: Priority -> Urgency -> Importance
+  // Sorting Logic
   const sortTasks = (taskList: Task[]) => {
     return taskList.sort((a, b) => {
         const pA = calculatePriority(a);
         const pB = calculatePriority(b);
         if (pA !== pB) return pB - pA;
-        
-        // Tie breaker 1: Urgency
         const uA = getScaleValue(a.urgency);
         const uB = getScaleValue(b.urgency);
         if (uA !== uB) return uB - uA;
-
-        // Tie breaker 2: Importance
         const iA = getScaleValue(a.importance);
         const iB = getScaleValue(b.importance);
         return iB - iA;
     });
   };
 
-  // Generate current visible week days based on baseDate and startDayOfWeek
   const days = useMemo(() => {
     const d = [];
     const start = new Date(baseDate);
-    
-    // Normalize to midnight
     start.setHours(0, 0, 0, 0);
-
-    const currentDay = start.getDay(); // 0-6 (Sun-Sat)
-    
-    // Calculate difference to get to the previous startDayOfWeek
-    // Example: StartDay = 1 (Mon), Current = 3 (Wed). Diff = 2. Start - 2 days.
-    // Example: StartDay = 1 (Mon), Current = 0 (Sun). Diff = -1? No, want previous Monday (6 days ago).
-    
+    const currentDay = start.getDay(); 
     let diff = currentDay - startDayOfWeek;
-    if (diff < 0) {
-        diff += 7;
-    }
-
+    if (diff < 0) diff += 7;
     start.setDate(start.getDate() - diff);
-    
     for (let i = 0; i < 7; i++) {
       const date = new Date(start);
       date.setDate(start.getDate() + i);
@@ -77,7 +101,6 @@ export const WeekView: React.FC<WeekViewProps> = ({ tasks, setTasks, onEditTask 
 
   const formatDate = (date: Date) => date.toISOString().split('T')[0];
 
-  // Group tasks for the week
   const getTasksForDay = (dateStr: string) => {
     return tasks.filter(t => t.when && t.when.startsWith(dateStr));
   };
@@ -85,12 +108,9 @@ export const WeekView: React.FC<WeekViewProps> = ({ tasks, setTasks, onEditTask 
   const getQueueTasks = () => {
     const today = new Date();
     today.setHours(0,0,0,0);
-
     const incomplete = tasks.filter(t => t.status !== TaskStatus.DONE);
-    
     const overdue = incomplete.filter(t => t.when && new Date(t.when) < today);
     const undated = incomplete.filter(t => !t.when);
-
     return {
         overdue: sortTasks(overdue),
         undated: sortTasks(undated)
@@ -144,7 +164,6 @@ export const WeekView: React.FC<WeekViewProps> = ({ tasks, setTasks, onEditTask 
       }
   };
 
-  // Handlers for Week Navigation
   const handlePrevWeek = () => {
       const newDate = new Date(baseDate);
       newDate.setDate(newDate.getDate() - 7);
@@ -160,31 +179,24 @@ export const WeekView: React.FC<WeekViewProps> = ({ tasks, setTasks, onEditTask 
   const handleJumpToDate = (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.value) {
           const parts = e.target.value.split('-');
-          // Create date using local time (avoid UTC shift issues)
           const newDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
           setBaseDate(newDate);
       }
   };
-
-  // Time Grid Helpers
-  const START_HOUR = 6; // 6 AM
-  const END_HOUR = 22; // 10 PM
-  const TOTAL_HOURS = END_HOUR - START_HOUR;
-  const HOUR_HEIGHT = 60; // px
 
   const getTaskPosition = (isoString: string) => {
       const d = new Date(isoString);
       const hours = d.getHours();
       const minutes = d.getMinutes();
       const minutesFromStart = ((hours - START_HOUR) * 60) + minutes;
-      return (minutesFromStart / 60) * HOUR_HEIGHT;
+      return (minutesFromStart / 60) * hourHeight;
   };
 
   const getTaskHeight = (task: Task) => {
       const h = task.duration?.hours || 1;
       const m = task.duration?.minutes || 0;
       const durationMinutes = (h * 60) + m;
-      return (durationMinutes / 60) * HOUR_HEIGHT;
+      return (durationMinutes / 60) * hourHeight;
   };
 
   const isUntimed = (isoString: string) => {
@@ -202,7 +214,7 @@ export const WeekView: React.FC<WeekViewProps> = ({ tasks, setTasks, onEditTask 
             <h3 className="font-bold text-slate-800 text-lg">Task Queue</h3>
         </div>
         
-        <div className="space-y-6 flex-1">
+        <div className="space-y-4 flex-1">
           {queue.overdue.length > 0 && (
              <div>
                 <h4 className="text-xs font-bold text-red-600 uppercase mb-2 flex items-center gap-1">
@@ -224,12 +236,6 @@ export const WeekView: React.FC<WeekViewProps> = ({ tasks, setTasks, onEditTask 
                                 <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">{task.forWho || 'Me'}</span>
                                 <span className="text-[10px] text-red-500 font-bold">{new Date(task.when!).toLocaleDateString()}</span>
                             </div>
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); onEditTask(task); }}
-                                className="absolute top-1 right-1 bg-white hover:bg-slate-100 text-slate-400 hover:text-sky-600 w-6 h-6 rounded-full flex items-center justify-center shadow-sm opacity-0 group-hover/queueitem:opacity-100 transition"
-                            >
-                                <i className="fas fa-pencil-alt text-xs"></i>
-                            </button>
                         </div>
                     ))}
                 </div>
@@ -239,7 +245,7 @@ export const WeekView: React.FC<WeekViewProps> = ({ tasks, setTasks, onEditTask 
           <div>
             <h4 className="text-xs font-bold text-slate-500 uppercase mb-2 flex justify-between items-center">
                 <span>Undated</span>
-                <button onClick={() => quickAddTask()} className="bg-sky-50 text-sky-600 hover:bg-sky-100 rounded-full w-5 h-5 flex items-center justify-center">
+                <button onClick={() => quickAddTask()} className={`bg-${accentColor}-50 text-${accentColor}-600 hover:bg-${accentColor}-100 rounded-full w-5 h-5 flex items-center justify-center`}>
                     <i className="fas fa-plus text-[10px]"></i>
                 </button>
             </h4>
@@ -253,19 +259,14 @@ export const WeekView: React.FC<WeekViewProps> = ({ tasks, setTasks, onEditTask 
                     onClick={() => setSelectedTask(selectedTask === task.id ? null : task.id)}
                     className={`p-3 rounded-lg border cursor-pointer transition-all relative group/queueitem ${
                         selectedTask === task.id 
-                        ? 'bg-sky-50 border-sky-500 ring-2 ring-sky-500 shadow-lg scale-[1.02]' 
-                        : 'bg-white border-slate-200 hover:border-sky-300 hover:shadow-md'
+                        ? `bg-${accentColor}-50 border-${accentColor}-500 ring-2 ring-${accentColor}-500 shadow-lg scale-[1.02]` 
+                        : 'bg-white border-slate-200 hover:border-slate-300'
                     }`}
                     >
                     <div className="font-semibold text-sm text-slate-800 leading-tight">{task.shortDescription}</div>
                     <div className="flex justify-between mt-2 items-center">
                         <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">{task.forWho || 'Me'}</span>
                         <div className="flex gap-1">
-                            {task.duration && (task.duration.hours > 0 || task.duration.minutes > 0) && (
-                                <span className="text-[10px] text-slate-500 font-mono bg-slate-100 px-1 rounded">
-                                    {task.duration.hours}h {task.duration.minutes}m
-                                </span>
-                            )}
                             <span className={`text-[10px] uppercase font-bold px-1 rounded ${task.urgency === 'Critical' ? 'text-red-600 bg-red-50' : 'text-slate-400'}`}>
                                 {task.urgency}
                             </span>
@@ -273,7 +274,7 @@ export const WeekView: React.FC<WeekViewProps> = ({ tasks, setTasks, onEditTask 
                     </div>
                      <button 
                         onClick={(e) => { e.stopPropagation(); onEditTask(task); }}
-                        className="absolute top-1 right-1 bg-white hover:bg-slate-100 text-slate-400 hover:text-sky-600 w-6 h-6 rounded-full flex items-center justify-center shadow-sm opacity-0 group-hover/queueitem:opacity-100 transition"
+                        className={`absolute top-1 right-1 bg-white text-slate-400 hover:text-${accentColor}-600 w-6 h-6 rounded-full flex items-center justify-center shadow-sm opacity-0 group-hover/queueitem:opacity-100 transition`}
                     >
                         <i className="fas fa-pencil-alt text-xs"></i>
                     </button>
@@ -287,9 +288,9 @@ export const WeekView: React.FC<WeekViewProps> = ({ tasks, setTasks, onEditTask 
       {/* Main Area */}
       <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50">
         {/* Header Controls */}
-        <div className="flex flex-wrap items-center justify-between px-6 py-3 bg-white border-b border-slate-200 shadow-sm z-10 gap-2">
+        <div className="flex flex-wrap items-center justify-between px-4 py-3 bg-white border-b border-slate-200 shadow-sm z-10 gap-2">
             <div className="flex items-center gap-2">
-                <button onClick={handlePrevWeek} className="p-2 text-slate-500 hover:text-sky-600 hover:bg-slate-100 rounded-full transition">
+                <button onClick={handlePrevWeek} className={`p-2 text-slate-500 hover:text-${accentColor}-600 hover:bg-slate-100 rounded-full transition`}>
                     <i className="fas fa-chevron-left"></i>
                 </button>
                 <button 
@@ -301,7 +302,7 @@ export const WeekView: React.FC<WeekViewProps> = ({ tasks, setTasks, onEditTask 
 
                 {/* Date Picker Button */}
                 <div className="relative group/picker">
-                    <button className="px-2 py-1 text-slate-500 hover:text-sky-600 hover:bg-slate-100 rounded transition flex items-center gap-1">
+                    <button className={`px-2 py-1 text-slate-500 hover:text-${accentColor}-600 hover:bg-slate-100 rounded transition flex items-center gap-1`}>
                         <i className="fas fa-calendar-alt"></i>
                     </button>
                     <input 
@@ -312,55 +313,51 @@ export const WeekView: React.FC<WeekViewProps> = ({ tasks, setTasks, onEditTask 
                     />
                 </div>
 
-                <h2 className="text-lg font-bold text-slate-800 w-32 md:w-48 text-center whitespace-nowrap">
-                    {days[0].toLocaleDateString(undefined, {month: 'short', day: 'numeric'})} - {days[6].toLocaleDateString(undefined, {month: 'short', day: 'numeric'})}
+                <h2 className="text-sm md:text-lg font-bold text-slate-800 w-28 md:w-48 text-center whitespace-nowrap">
+                    {days[0].toLocaleDateString(undefined, {month: 'numeric', day: 'numeric'})} - {days[6].toLocaleDateString(undefined, {month: 'numeric', day: 'numeric'})}
                 </h2>
-                <button onClick={handleNextWeek} className="p-2 text-slate-500 hover:text-sky-600 hover:bg-slate-100 rounded-full transition">
+                <button onClick={handleNextWeek} className={`p-2 text-slate-500 hover:text-${accentColor}-600 hover:bg-slate-100 rounded-full transition`}>
                     <i className="fas fa-chevron-right"></i>
                 </button>
             </div>
             
             <div className="flex items-center gap-2">
-                {/* Start of Week Selector */}
-                <div className="hidden md:flex items-center gap-1 text-xs text-slate-500">
-                    <span>Starts:</span>
-                    <select 
-                        value={startDayOfWeek}
-                        onChange={(e) => setStartDayOfWeek(parseInt(e.target.value))}
-                        className="bg-white border border-slate-200 rounded p-1 outline-none focus:border-sky-500 text-slate-900"
-                    >
-                        <option value={0}>Sunday</option>
-                        <option value={1}>Monday</option>
-                        <option value={6}>Saturday</option>
-                    </select>
-                </div>
+                 {/* Zoom Reset */}
+                 {hourHeight !== 60 && (
+                     <button onClick={() => setHourHeight(60)} className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded">Reset Zoom</button>
+                 )}
 
                 <div className="flex bg-slate-100 p-1 rounded-lg">
                     <button 
                         onClick={() => setIsTimeGridView(false)}
-                        className={`px-3 py-1 rounded-md text-sm font-medium transition ${!isTimeGridView ? 'bg-white text-sky-600 shadow-sm' : 'text-slate-500'}`}
+                        className={`px-3 py-1 rounded-md text-sm font-medium transition ${!isTimeGridView ? `bg-white text-${accentColor}-600 shadow-sm` : 'text-slate-500'}`}
                     >
                         List
                     </button>
                     <button 
                         onClick={() => setIsTimeGridView(true)}
-                        className={`px-3 py-1 rounded-md text-sm font-medium transition ${isTimeGridView ? 'bg-white text-sky-600 shadow-sm' : 'text-slate-500'}`}
+                        className={`px-3 py-1 rounded-md text-sm font-medium transition ${isTimeGridView ? `bg-white text-${accentColor}-600 shadow-sm` : 'text-slate-500'}`}
                     >
-                        Time Grid
+                        Grid
                     </button>
                 </div>
             </div>
         </div>
 
         {/* Scrollable Grid Area */}
-        <div className="flex-1 overflow-x-auto overflow-y-auto no-scrollbar relative">
-           <div className="flex min-w-[1000px] h-full">
+        <div 
+            className="flex-1 overflow-x-auto overflow-y-auto no-scrollbar relative touch-pan-x touch-pan-y"
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+        >
+           <div className="flex min-w-[800px] md:min-w-[1000px] h-full">
                {/* Time Labels Column (Only for Time Grid) */}
                {isTimeGridView && (
-                   <div className="w-12 flex-shrink-0 bg-slate-50 border-r border-slate-200 pt-[42px]">
+                   <div className="w-10 flex-shrink-0 bg-slate-50 border-r border-slate-200 pt-[42px]">
                        {Array.from({ length: TOTAL_HOURS }).map((_, i) => (
-                           <div key={i} className="h-[60px] text-[10px] text-slate-400 text-right pr-2 relative -top-2">
-                               {(START_HOUR + i).toString().padStart(2, '0')}:00
+                           <div key={i} style={{ height: `${hourHeight}px` }} className="text-[10px] text-slate-400 text-right pr-2 relative -top-2 border-b border-transparent">
+                               {(START_HOUR + i).toString().padStart(2, '0')}
                            </div>
                        ))}
                    </div>
@@ -379,17 +376,18 @@ export const WeekView: React.FC<WeekViewProps> = ({ tasks, setTasks, onEditTask 
                     return (
                         <div 
                             key={dateStr} 
-                            className={`flex-1 min-w-[140px] border-r border-slate-200 flex flex-col relative group ${isToday ? 'bg-sky-50/30' : ''}`}
+                            className={`flex-1 min-w-[100px] border-r border-slate-200 flex flex-col relative group ${isToday ? `bg-${accentColor}-50/30` : ''}`}
                             onClick={() => selectedTask && assignTaskToDay(selectedTask, day)}
                         >
-                            {/* Day Header */}
-                            <div className={`text-center py-2 border-b border-slate-200 sticky top-0 z-10 flex flex-col items-center ${isToday ? 'bg-sky-600 text-white' : 'bg-slate-50 text-slate-700'}`}>
-                                <div className="text-xs font-bold uppercase tracking-wider">{day.toLocaleDateString('en-US', { weekday: 'short' })}</div>
-                                <div className={`text-xl font-black ${isToday ? 'text-white' : 'text-slate-900'}`}>{day.getDate()}</div>
+                            {/* Day Header - Compact with Top-Right Button */}
+                            <div className={`text-center py-2 border-b border-slate-200 sticky top-0 z-10 flex flex-col items-center h-[42px] justify-center relative ${isToday ? `bg-${accentColor}-600 text-white` : 'bg-slate-50 text-slate-700'}`}>
+                                <div className="text-[10px] font-bold uppercase tracking-wider leading-none mb-0.5">{day.toLocaleDateString('en-US', { weekday: 'short' })}</div>
+                                <div className={`text-sm font-black leading-none ${isToday ? 'text-white' : 'text-slate-900'}`}>{day.getDate()}</div>
+                                
                                 <button 
                                     onClick={(e) => { e.stopPropagation(); quickAddTask(day); }}
-                                    className={`mt-1 w-6 h-6 rounded-full flex items-center justify-center text-xs hover:scale-110 transition ${isToday ? 'bg-white text-sky-600' : 'bg-sky-100 text-sky-600 hover:bg-sky-200'}`}
-                                    title="Quick Add to Day"
+                                    className={`absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] transition shadow-sm ${isToday ? 'bg-white text-sky-600' : 'bg-white border border-slate-300 text-slate-400 hover:text-sky-600'}`}
+                                    title="Quick Add"
                                 >
                                     <i className="fas fa-plus"></i>
                                 </button>
@@ -397,38 +395,25 @@ export const WeekView: React.FC<WeekViewProps> = ({ tasks, setTasks, onEditTask 
 
                             {/* Drop overlay */}
                             {selectedTask && (
-                                <div className="absolute inset-0 bg-sky-500/10 z-20 flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">
-                                    <span className="bg-sky-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow">Assign Here</span>
+                                <div className={`absolute inset-0 bg-${accentColor}-500/10 z-20 flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity`}>
+                                    <span className={`bg-${accentColor}-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow`}>Assign Here</span>
                                 </div>
                             )}
 
                             {/* List View Content */}
                             {!isTimeGridView && (
-                                <div className="p-2 space-y-2 pb-20">
+                                <div className="p-1 space-y-1 pb-20">
                                     {[...untimedTasks, ...timedTasks].map(task => (
-                                        <div key={task.id} className="bg-white p-2 rounded shadow-sm border border-slate-200 text-sm hover:shadow-md transition cursor-pointer relative group/item">
+                                        <div key={task.id} className="bg-white p-1.5 rounded shadow-sm border border-slate-200 text-xs hover:shadow-md transition cursor-pointer relative group/item">
                                             {task.when && !isUntimed(task.when) && (
-                                                <div className="text-[10px] font-bold text-sky-600 mb-1">
+                                                <div className={`text-[9px] font-bold text-${accentColor}-600 leading-none mb-0.5`}>
                                                     {new Date(task.when).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                                                 </div>
                                             )}
-                                            <div className="font-medium text-slate-800">{task.shortDescription}</div>
-                                            <div className="flex justify-between items-center mt-1">
-                                                <div className="text-[10px] text-slate-500 truncate max-w-[80px]">{task.where}</div>
-                                                {task.urgency === 'Critical' && <i className="fas fa-exclamation-circle text-red-500 text-xs"></i>}
-                                            </div>
-                                            <div className="absolute -top-2 -right-2 flex gap-1 opacity-0 group-hover/item:opacity-100 transition">
-                                                <button 
-                                                    onClick={(e) => { e.stopPropagation(); onEditTask(task); }}
-                                                    className="bg-white hover:bg-slate-100 text-slate-400 hover:text-sky-600 rounded-full w-6 h-6 flex items-center justify-center shadow border border-slate-200"
-                                                >
-                                                    <i className="fas fa-pencil-alt text-xs"></i>
-                                                </button>
-                                                <button 
-                                                    onClick={(e) => { e.stopPropagation(); unassignTask(task.id); }}
-                                                    className="bg-white hover:bg-red-50 text-red-400 hover:text-red-600 rounded-full w-6 h-6 flex items-center justify-center shadow border border-slate-200"
-                                                >
-                                                    <i className="fas fa-times text-xs"></i>
+                                            <div className="font-medium text-slate-800 leading-tight">{task.shortDescription}</div>
+                                            <div className="absolute top-0 right-0 p-1 opacity-0 group-hover/item:opacity-100 transition">
+                                                <button onClick={(e) => { e.stopPropagation(); onEditTask(task); }}>
+                                                    <i className="fas fa-pencil-alt text-slate-400 hover:text-sky-600"></i>
                                                 </button>
                                             </div>
                                         </div>
@@ -443,12 +428,12 @@ export const WeekView: React.FC<WeekViewProps> = ({ tasks, setTasks, onEditTask 
                                     {untimedTasks.length > 0 && (
                                         <div className="bg-slate-100 p-1 border-b border-slate-200 space-y-1 z-10 relative">
                                             {untimedTasks.map(task => (
-                                                <div key={task.id} className="bg-white p-1 px-2 rounded border border-slate-300 text-xs shadow-sm flex justify-between items-center relative group/item">
+                                                <div key={task.id} className="bg-white p-1 px-2 rounded border border-slate-300 text-[10px] shadow-sm flex justify-between items-center relative group/item">
                                                     <span className="truncate font-medium text-slate-700">{task.shortDescription}</span>
                                                      <div className="flex gap-1 opacity-0 group-hover/item:opacity-100">
                                                         <button 
                                                             onClick={(e) => { e.stopPropagation(); onEditTask(task); }}
-                                                            className="text-slate-400 hover:text-sky-600"
+                                                            className={`text-slate-400 hover:text-${accentColor}-600`}
                                                         >
                                                             <i className="fas fa-pencil-alt"></i>
                                                         </button>
@@ -467,7 +452,7 @@ export const WeekView: React.FC<WeekViewProps> = ({ tasks, setTasks, onEditTask 
                                     {/* Timed Grid Background Lines */}
                                     <div className="absolute inset-0 pointer-events-none">
                                         {Array.from({ length: TOTAL_HOURS }).map((_, i) => (
-                                            <div key={i} className="h-[60px] border-b border-slate-100 w-full" style={{ boxSizing: 'border-box' }}></div>
+                                            <div key={i} className="border-b border-slate-100 w-full" style={{ height: `${hourHeight}px`, boxSizing: 'border-box' }}></div>
                                         ))}
                                     </div>
 
@@ -481,24 +466,18 @@ export const WeekView: React.FC<WeekViewProps> = ({ tasks, setTasks, onEditTask 
                                         return (
                                             <div 
                                                 key={task.id}
-                                                className="absolute left-1 right-1 rounded border border-sky-200 bg-sky-100/90 text-sky-900 p-1 text-xs overflow-hidden hover:z-20 hover:shadow-lg transition cursor-pointer group/block"
-                                                style={{ top: `${top}px`, height: `${Math.max(height, 24)}px` }}
+                                                className={`absolute left-1 right-1 rounded border border-${accentColor}-200 bg-${accentColor}-100/90 text-${accentColor}-900 p-1 text-xs overflow-hidden hover:z-20 hover:shadow-lg transition cursor-pointer group/block`}
+                                                style={{ top: `${top}px`, height: `${Math.max(height, 20)}px` }}
                                             >
-                                                <div className="font-bold text-[10px] leading-3">{new Date(task.when!).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-                                                <div className="font-medium leading-tight truncate">{task.shortDescription}</div>
+                                                <div className="font-bold text-[9px] leading-3">{new Date(task.when!).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                                                <div className="font-medium leading-tight truncate text-[10px]">{task.shortDescription}</div>
                                                 
                                                 <div className="absolute top-0 right-0 p-1 flex gap-1 opacity-0 group-hover/block:opacity-100">
                                                     <button 
                                                         onClick={(e) => { e.stopPropagation(); onEditTask(task); }}
-                                                        className="text-sky-600 hover:text-sky-800 bg-white/50 rounded px-1"
+                                                        className={`text-${accentColor}-600 hover:text-${accentColor}-800 bg-white/50 rounded px-1`}
                                                     >
-                                                        <i className="fas fa-pencil-alt"></i>
-                                                    </button>
-                                                    <button 
-                                                        onClick={(e) => { e.stopPropagation(); unassignTask(task.id); }}
-                                                        className="text-sky-400 hover:text-red-500 bg-white/50 rounded px-1"
-                                                    >
-                                                        <i className="fas fa-times"></i>
+                                                        <i className="fas fa-pencil-alt text-[10px]"></i>
                                                     </button>
                                                 </div>
                                             </div>
