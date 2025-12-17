@@ -1,3 +1,4 @@
+
 import React, { useState, useRef } from 'react';
 import { Task, Importance, Urgency, TaskStatus, Attachment } from '../types';
 import { parseBrainDump } from '../services/geminiService';
@@ -27,6 +28,7 @@ export const BrainDump: React.FC<BrainDumpProps> = ({ tasks, setTasks, initialFi
     where: '',
     when: '',
     linkedEmail: '',
+    assignee: '', // Added to match DetailSidebar
     importance: Importance.MEDIUM,
     urgency: Urgency.MEDIUM
   });
@@ -43,7 +45,8 @@ export const BrainDump: React.FC<BrainDumpProps> = ({ tasks, setTasks, initialFi
   };
 
   // NEW FORMULA: Urgency * (Importance ^ 2)
-  const calculatePriority = (imp: Importance, urg: Urgency) => {
+  const calculatePriority = (imp: Importance, urg: Urgency, status: TaskStatus) => {
+    if (status === TaskStatus.DONE) return 0;
     return getScaleValue(urg) * Math.pow(getScaleValue(imp), 2);
   };
 
@@ -70,8 +73,9 @@ export const BrainDump: React.FC<BrainDumpProps> = ({ tasks, setTasks, initialFi
       longDescription: newTask.longDescription || '',
       forWho: newTask.forWho || 'Personal',
       where: newTask.where,
-      when: newTask.when,
+      when: newTask.when, // Now includes time if provided
       linkedEmail: newTask.linkedEmail,
+      assignee: newTask.assignee,
       importance: newTask.importance || Importance.MEDIUM,
       urgency: newTask.urgency || Urgency.MEDIUM,
       status: TaskStatus.TODO,
@@ -88,6 +92,7 @@ export const BrainDump: React.FC<BrainDumpProps> = ({ tasks, setTasks, initialFi
       where: '', 
       when: '',
       linkedEmail: '',
+      assignee: '',
       importance: Importance.MEDIUM, 
       urgency: Urgency.MEDIUM 
     });
@@ -122,21 +127,28 @@ export const BrainDump: React.FC<BrainDumpProps> = ({ tasks, setTasks, initialFi
   };
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Value from datetime-local comes as YYYY-MM-DDTHH:MM
+    // Task.when expects ISO String.
     const val = e.target.value;
-    setNewTask({...newTask, when: val});
-    
-    if (val) {
-      const selectedDate = new Date(val);
-      const today = new Date();
-      today.setHours(0,0,0,0);
-      
-      // Simple check: if date is today or before today
-      if (selectedDate <= today) {
-        setDateSuggestionMessage("Date is today or past due. Urgency suggested: Critical.");
-        setNewTask(prev => ({...prev, when: val, urgency: Urgency.CRITICAL}));
-      } else {
+    if (!val) {
+        setNewTask({...newTask, when: ''});
         setDateSuggestionMessage(null);
-      }
+        return;
+    }
+
+    const dateObj = new Date(val);
+    const isoString = dateObj.toISOString();
+    setNewTask({...newTask, when: isoString});
+    
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    
+    // Simple check: if date is today or before today
+    if (dateObj <= today) {
+      setDateSuggestionMessage("Date is today or past due. Urgency suggested: Critical.");
+      setNewTask(prev => ({...prev, when: isoString, urgency: Urgency.CRITICAL}));
+    } else {
+      setDateSuggestionMessage(null);
     }
   };
 
@@ -144,7 +156,21 @@ export const BrainDump: React.FC<BrainDumpProps> = ({ tasks, setTasks, initialFi
       const newStatus = currentStatus === TaskStatus.DONE ? TaskStatus.TODO : TaskStatus.DONE;
       const completedAt = newStatus === TaskStatus.DONE ? new Date().toISOString() : undefined;
       
-      setTasks(prev => prev.map(t => t.id === taskId ? {...t, status: newStatus, completedAt} : t));
+      // When marking done, we effectively nullify urgency/importance in the UI sorting, 
+      // but here we persist them as LOW for data consistency or allow them to stay.
+      // The prompt requested: "When tasks are completed their priority... become null"
+      // Since we use Enums, we will set them to LOW.
+      
+      setTasks(prev => prev.map(t => {
+          if (t.id !== taskId) return t;
+          return {
+              ...t,
+              status: newStatus,
+              completedAt,
+              importance: newStatus === TaskStatus.DONE ? Importance.LOW : t.importance,
+              urgency: newStatus === TaskStatus.DONE ? Urgency.LOW : t.urgency
+          };
+      }));
   };
 
   const filteredTasks = tasks.filter(t => {
@@ -155,14 +181,14 @@ export const BrainDump: React.FC<BrainDumpProps> = ({ tasks, setTasks, initialFi
 
   // Sort by Priority (High Priority First)
   const sortedTasks = [...filteredTasks].sort((a, b) => {
-    const pA = calculatePriority(a.importance, a.urgency);
-    const pB = calculatePriority(b.importance, b.urgency);
+    const pA = calculatePriority(a.importance, a.urgency, a.status);
+    const pB = calculatePriority(b.importance, b.urgency, b.status);
     return pB - pA;
   });
 
   const forWhoOptions = ["Personal", "Amelia", "School Board", "Work: UDRG", "Work: MGC", "Work: ALG"];
 
-  // Styling Constants
+  // Styling Constants - Explicit colors for compliance
   const inputClass = "w-full bg-white text-slate-900 border border-slate-300 p-3 rounded-lg focus:ring-2 focus:ring-sky-500 outline-none placeholder-slate-400 text-base shadow-sm";
   const labelClass = "block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wide";
 
@@ -216,7 +242,7 @@ export const BrainDump: React.FC<BrainDumpProps> = ({ tasks, setTasks, initialFi
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div className="col-span-1 md:col-span-2">
-                  <label className={labelClass}>SHORT DESCRIPTION</label>
+                  <label className={labelClass}>TASK NAME</label>
                   <input 
                       type="text" 
                       placeholder="What needs to be done?" 
@@ -227,7 +253,7 @@ export const BrainDump: React.FC<BrainDumpProps> = ({ tasks, setTasks, initialFi
                 </div>
 
                 <div className="col-span-1 md:col-span-2">
-                  <label className={labelClass}>LONG DESCRIPTION</label>
+                  <label className={labelClass}>DESCRIPTION</label>
                   <textarea 
                       placeholder="Additional details..." 
                       rows={3}
@@ -238,7 +264,7 @@ export const BrainDump: React.FC<BrainDumpProps> = ({ tasks, setTasks, initialFi
                 </div>
 
                 <div>
-                  <label className={labelClass}>FOR WHO/WHAT?</label>
+                  <label className={labelClass}>CONTEXT (Work/Home)</label>
                   <input 
                       list="who-options"
                       type="text" 
@@ -250,6 +276,17 @@ export const BrainDump: React.FC<BrainDumpProps> = ({ tasks, setTasks, initialFi
                   <datalist id="who-options">
                     {forWhoOptions.map(opt => <option key={opt} value={opt} />)}
                   </datalist>
+                </div>
+
+                <div>
+                  <label className={labelClass}>ASSIGNEE (Who)</label>
+                  <input 
+                      type="text" 
+                      placeholder="e.g. Me, John" 
+                      className={inputClass}
+                      value={newTask.assignee}
+                      onChange={e => setNewTask({...newTask, assignee: e.target.value})}
+                  />
                 </div>
 
                 <div>
@@ -266,9 +303,9 @@ export const BrainDump: React.FC<BrainDumpProps> = ({ tasks, setTasks, initialFi
                 <div>
                   <label className={labelClass}>WHEN?</label>
                   <input 
-                      type="date" 
-                      className={inputClass}
-                      value={newTask.when}
+                      type="datetime-local" 
+                      className={`${inputClass} appearance-none bg-white text-slate-900`}
+                      value={newTask.when ? newTask.when.slice(0, 16) : ''}
                       onChange={handleDateChange}
                   />
                   {dateSuggestionMessage && (
@@ -293,42 +330,44 @@ export const BrainDump: React.FC<BrainDumpProps> = ({ tasks, setTasks, initialFi
                    </div>
                 </div>
 
-                <div>
-                  <label className={labelClass}>URGENCY (1-4)</label>
-                  <div className="relative">
-                      <select 
-                          className={`${inputClass} appearance-none`}
-                          value={newTask.urgency}
-                          onChange={e => setNewTask({...newTask, urgency: e.target.value as Urgency})}
-                      >
-                          <option value={Urgency.LOW}>1 - Low</option>
-                          <option value={Urgency.MEDIUM}>2 - Medium</option>
-                          <option value={Urgency.HIGH}>3 - High</option>
-                          <option value={Urgency.CRITICAL}>4 - Critical</option>
-                      </select>
-                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-600">
-                            <i className="fas fa-chevron-down"></i>
-                      </div>
-                  </div>
-                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                    <label className={labelClass}>URGENCY</label>
+                    <div className="relative">
+                        <select 
+                            className={`${inputClass} appearance-none bg-white text-slate-900`}
+                            value={newTask.urgency}
+                            onChange={e => setNewTask({...newTask, urgency: e.target.value as Urgency})}
+                        >
+                            <option value={Urgency.LOW}>Low</option>
+                            <option value={Urgency.MEDIUM}>Medium</option>
+                            <option value={Urgency.HIGH}>High</option>
+                            <option value={Urgency.CRITICAL}>Critical</option>
+                        </select>
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-600">
+                                <i className="fas fa-chevron-down"></i>
+                        </div>
+                    </div>
+                    </div>
 
-                <div>
-                  <label className={labelClass}>IMPORTANCE (1-4)</label>
-                  <div className="relative">
-                      <select 
-                          className={`${inputClass} appearance-none`}
-                          value={newTask.importance}
-                          onChange={e => setNewTask({...newTask, importance: e.target.value as Importance})}
-                      >
-                          <option value={Importance.LOW}>1 - Low</option>
-                          <option value={Importance.MEDIUM}>2 - Medium</option>
-                          <option value={Importance.HIGH}>3 - High</option>
-                          <option value={Importance.CRITICAL}>4 - Critical</option>
-                      </select>
-                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-600">
-                            <i className="fas fa-chevron-down"></i>
-                      </div>
-                  </div>
+                    <div>
+                    <label className={labelClass}>IMPORTANCE</label>
+                    <div className="relative">
+                        <select 
+                            className={`${inputClass} appearance-none bg-white text-slate-900`}
+                            value={newTask.importance}
+                            onChange={e => setNewTask({...newTask, importance: e.target.value as Importance})}
+                        >
+                            <option value={Importance.LOW}>Low</option>
+                            <option value={Importance.MEDIUM}>Medium</option>
+                            <option value={Importance.HIGH}>High</option>
+                            <option value={Importance.CRITICAL}>Critical</option>
+                        </select>
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-600">
+                                <i className="fas fa-chevron-down"></i>
+                        </div>
+                    </div>
+                    </div>
                 </div>
             </div>
 
@@ -336,7 +375,7 @@ export const BrainDump: React.FC<BrainDumpProps> = ({ tasks, setTasks, initialFi
             <div className="bg-slate-100 p-3 rounded-lg mb-6 flex justify-between items-center border border-slate-200">
                <span className="text-sm font-bold text-slate-600 uppercase">Priority Score</span>
                <span className="text-xl font-bold text-slate-900">
-                  {calculatePriority(newTask.importance || Importance.LOW, newTask.urgency || Urgency.LOW)} 
+                  {calculatePriority(newTask.importance || Importance.LOW, newTask.urgency || Urgency.LOW, TaskStatus.TODO)} 
                   <span className="text-sm text-slate-500 font-normal ml-1">/ 64</span>
                </span>
             </div>
@@ -397,12 +436,14 @@ export const BrainDump: React.FC<BrainDumpProps> = ({ tasks, setTasks, initialFi
       {/* Task List - Compact Mobile-First Design */}
       <div className="space-y-3">
         {sortedTasks.map(task => {
-          const priorityScore = calculatePriority(task.importance, task.urgency);
+          const priorityScore = calculatePriority(task.importance, task.urgency, task.status);
+          const isDone = task.status === TaskStatus.DONE;
+          
           return (
             <div 
                 key={task.id} 
                 onClick={() => onTaskClick?.(task)}
-                className="bg-white p-3 rounded-lg shadow-sm border border-slate-200 flex gap-3 cursor-pointer active:bg-slate-50 transition-colors"
+                className={`bg-white p-3 rounded-lg shadow-sm border border-slate-200 flex gap-3 cursor-pointer active:bg-slate-50 transition-colors ${isDone ? 'opacity-60 bg-slate-50' : ''}`}
             >
               {/* Left Sidebar: Priority & Actions (Vertically Stacked) */}
               <div 
@@ -411,7 +452,7 @@ export const BrainDump: React.FC<BrainDumpProps> = ({ tasks, setTasks, initialFi
               >
                   {/* Priority Badge */}
                   <span 
-                    className="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center text-xs font-bold shadow-sm ring-2 ring-slate-100" 
+                    className={`w-8 h-8 rounded-full text-white flex items-center justify-center text-xs font-bold shadow-sm ring-2 ring-slate-100 ${isDone ? 'bg-slate-400' : 'bg-slate-800'}`}
                     title="Priority Score"
                   >
                       {priorityScore}
@@ -421,7 +462,7 @@ export const BrainDump: React.FC<BrainDumpProps> = ({ tasks, setTasks, initialFi
                   <div className="flex flex-col gap-2 mt-1">
                       <button 
                           onClick={() => toggleTaskComplete(task.id, task.status)}
-                          className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors shadow-sm border border-slate-100 ${task.status === TaskStatus.DONE ? 'bg-green-100 text-green-600' : 'bg-white text-slate-400 hover:text-green-500 hover:bg-green-50'}`}
+                          className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors shadow-sm border border-slate-100 ${isDone ? 'bg-green-100 text-green-600' : 'bg-white text-slate-400 hover:text-green-500 hover:bg-green-50'}`}
                           title="Complete"
                       >
                           <i className="fas fa-check text-xs"></i>
@@ -432,19 +473,21 @@ export const BrainDump: React.FC<BrainDumpProps> = ({ tasks, setTasks, initialFi
               {/* Main Content Area */}
               <div className="flex-1 min-w-0 py-1">
                   <div className="flex justify-between items-start mb-1 gap-2">
-                      <h3 className={`font-bold text-sm leading-snug text-slate-800 line-clamp-2 ${task.status === TaskStatus.DONE ? 'line-through text-slate-400' : ''}`}>
+                      <h3 className={`font-bold text-sm leading-snug text-slate-800 line-clamp-2 ${isDone ? 'line-through text-slate-500' : ''}`}>
                         {task.shortDescription}
                       </h3>
-                      <div className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider whitespace-nowrap flex-shrink-0 ${
-                          task.urgency === Urgency.CRITICAL ? 'bg-red-100 text-red-800' :
-                          task.urgency === Urgency.HIGH ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'
-                      }`}>
-                          {task.urgency}
-                      </div>
+                      {!isDone && (
+                        <div className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider whitespace-nowrap flex-shrink-0 ${
+                            task.urgency === Urgency.CRITICAL ? 'bg-red-100 text-red-800' :
+                            task.urgency === Urgency.HIGH ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'
+                        }`}>
+                            {task.urgency}
+                        </div>
+                      )}
                   </div>
                   
                   {task.longDescription && (
-                    <p className="text-xs text-slate-500 line-clamp-2 mb-2 leading-relaxed">{task.longDescription}</p>
+                    <p className={`text-xs text-slate-500 line-clamp-2 mb-2 leading-relaxed ${isDone ? 'line-through opacity-70' : ''}`}>{task.longDescription}</p>
                   )}
 
                   {/* Metadata Row */}

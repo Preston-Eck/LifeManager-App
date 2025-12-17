@@ -84,6 +84,7 @@ export interface Task {
   boardId?: string; // For "Brain Dump Boards"
   updates?: UpdateLog[];
   calendarId?: string; // Linked Google Calendar
+  googleEventId?: string; // The ID of the event in Google Calendar
   completedAt?: string; // ISO Date string when status changed to Done
 }
 
@@ -97,6 +98,7 @@ export interface Event {
   linkedEmail?: string;
   updates?: UpdateLog[];
   calendarId?: string; // Linked Google Calendar
+  googleEventId?: string; // The ID of the event in Google Calendar
   isHidden?: boolean; // New field for visibility management
 }
 

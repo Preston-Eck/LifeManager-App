@@ -5,13 +5,19 @@ import { Task, Urgency, Importance, TaskStatus, Book } from "../types";
 // Helper for ID generation since we don't have uuid package
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
+const getApiKey = () => {
+    // In local dev, use process.env. In GAS, use injected window variable.
+    return process.env.API_KEY || (window as any).GEMINI_API_KEY;
+}
+
 export const parseBrainDump = async (text: string, currentTasks: Task[]): Promise<Task[]> => {
-  if (!process.env.API_KEY) {
+  const apiKey = getApiKey();
+  if (!apiKey) {
     console.warn("No API KEY provided");
     return [];
   }
 
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey });
   
   const systemInstruction = `
     You are a helpful assistant for a busy campground manager and father. 
@@ -77,9 +83,10 @@ export const parseBrainDump = async (text: string, currentTasks: Task[]): Promis
  * Extracts an ISBN from a base64 image using Gemini Vision.
  */
 export const extractISBNFromImage = async (base64Image: string): Promise<string | null> => {
-  if (!process.env.API_KEY) return null;
+  const apiKey = getApiKey();
+  if (!apiKey) return null;
 
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey });
 
   try {
     const response = await ai.models.generateContent({
@@ -140,8 +147,9 @@ export const lookupBookDetails = async (isbn: string): Promise<Partial<Book> | n
 
       // 2. Generate Core Focus with Gemini
       let coreFocus = "AI Summary Pending";
-      if (process.env.API_KEY && description) {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const apiKey = getApiKey();
+      if (apiKey && description) {
+        const ai = new GoogleGenAI({ apiKey });
         const prompt = `Based on the following book information, generate a concise "Core Focus" of 5-10 words. The Core Focus should capture the main theme, purpose, or genre of the book. Examples of good Core Focus summaries are: "Building Scalable Business Systems", "Intellectual Foundations of Christian Faith", "Modern Epic Fantasy & World-Building". Do not include quotation marks or any introductory text in your response.
 
           Book Information:

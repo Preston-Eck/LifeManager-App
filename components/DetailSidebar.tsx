@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Task, Event, TaskStatus, Urgency, Importance, UpdateLog, Attachment, GoogleCalendar } from '../types';
 
@@ -104,11 +105,18 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({ isOpen, item, cale
   };
 
   const handleChange = (field: string, value: any) => {
-    // If status changes to DONE, set completedAt
+    // If status changes to DONE, set completedAt and reset priority
     if (field === 'status' && isTask(formData)) {
         const newStatus = value as TaskStatus;
         const completedAt = newStatus === TaskStatus.DONE ? new Date().toISOString() : undefined;
-        setFormData({ ...formData, [field]: value, completedAt });
+        // When completed, set importance/urgency to LOW (effectively null in our logic)
+        setFormData({ 
+            ...formData, 
+            [field]: value, 
+            completedAt,
+            importance: newStatus === TaskStatus.DONE ? Importance.LOW : formData.importance,
+            urgency: newStatus === TaskStatus.DONE ? Urgency.LOW : formData.urgency
+        });
     } else {
         setFormData({ ...formData, [field]: value });
     }
@@ -116,7 +124,7 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({ isOpen, item, cale
 
   const handleDurationChange = (type: 'hours' | 'minutes', val: string) => {
       if (!isTask(formData)) return;
-      const num = parseInt(val) || 0;
+      const num = val === '' ? 0 : parseInt(val);
       const currentDuration = formData.duration || { hours: 0, minutes: 0 };
       setFormData({
           ...formData,
@@ -162,7 +170,7 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({ isOpen, item, cale
             {/* Title / Short Desc */}
             <div>
                 <label className={labelClass}>
-                    {isTask(formData) ? 'Task Name' : 'Event Title'}
+                    {isTask(formData) ? 'TASK NAME' : 'EVENT TITLE'}
                 </label>
                 <input 
                     className={`${commonInputClass} font-bold text-lg`}
@@ -194,7 +202,7 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({ isOpen, item, cale
                             </div>
                         </div>
                         <div>
-                            <label className={labelClass}>Context (Work/Home)</label>
+                            <label className={labelClass}>CONTEXT (Work/Home)</label>
                             <input 
                                 className={commonInputClass}
                                 value={formData.forWho || ''}
@@ -206,7 +214,7 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({ isOpen, item, cale
 
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className={labelClass}>Assignee (Who)</label>
+                            <label className={labelClass}>ASSIGNEE (Who)</label>
                             <input 
                                 className={commonInputClass}
                                 value={formData.assignee || ''}
@@ -284,8 +292,9 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({ isOpen, item, cale
                                 type="number" 
                                 min="0" 
                                 className="w-full p-3 outline-none text-slate-900 bg-transparent text-base rounded-lg"
-                                value={formData.duration?.hours || 0}
+                                value={formData.duration?.hours === 0 ? '' : formData.duration?.hours}
                                 onChange={(e) => handleDurationChange('hours', e.target.value)}
+                                placeholder="0"
                              />
                              <span className="text-slate-500 text-xs font-bold px-2">HRS</span>
                         </div>
@@ -295,8 +304,9 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({ isOpen, item, cale
                                 min="0" 
                                 max="59"
                                 className="w-full p-3 outline-none text-slate-900 bg-transparent text-base rounded-lg"
-                                value={formData.duration?.minutes || 0}
+                                value={formData.duration?.minutes === 0 ? '' : formData.duration?.minutes}
                                 onChange={(e) => handleDurationChange('minutes', e.target.value)}
+                                placeholder="0"
                              />
                              <span className="text-slate-500 text-xs font-bold px-2">MIN</span>
                         </div>
@@ -332,7 +342,7 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({ isOpen, item, cale
 
             {/* Description (Common) */}
             <div>
-                <label className={labelClass}>Description</label>
+                <label className={labelClass}>DESCRIPTION</label>
                 <textarea 
                     className={`${commonInputClass} h-32`}
                     value={isTask(formData) ? (formData.longDescription || '') : (formData.description || '')}

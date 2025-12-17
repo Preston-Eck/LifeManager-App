@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Task, Event, Book, MeetingNote, GoogleCalendar, User, ThemePreferences, Person, TaskStatus } from './types';
+import { View, Task, Event, Book, MeetingNote, GoogleCalendar, User, ThemePreferences, Person, TaskStatus } from '../types';
 import { Navigation } from './components/Navigation';
 import { BrainDump } from './components/BrainDump';
 import { WeekView } from './components/WeekView';
@@ -10,7 +11,7 @@ import { Settings } from './components/Settings';
 import { DetailSidebar } from './components/DetailSidebar';
 import { Login } from './components/Login';
 import { SetupWizard } from './components/SetupWizard';
-import { loadAllData, saveData } from './services/storage';
+import { loadAllData, saveData, syncTaskToCalendar, fetchExternalEvents } from './services/storage';
 import { MOCK_PEOPLE } from './constants';
 
 const App: React.FC = () => {
@@ -49,13 +50,25 @@ const App: React.FC = () => {
     const init = async () => {
       try {
         const data = await loadAllData();
+        
+        // --- ENV Injection for GAS ---
+        if (data.env && data.env.API_KEY) {
+            // Polyfill for client-side API Key usage
+            (window as any).GEMINI_API_KEY = data.env.API_KEY;
+        }
+
         // Batch updates
         setTasks(data.tasks);
-        setEvents(data.events);
         setBooks(data.books);
         setNotes(data.notes);
         setPeople(data.people);
-        setCalendars(data.calendars);
+        
+        // Use system calendars if available (fresh fetch), otherwise fallback to stored
+        if (data.systemCalendars && data.systemCalendars.length > 0) {
+            setCalendars(data.systemCalendars);
+        } else {
+            setCalendars(data.calendars);
+        }
         
         if (data.userEmail) {
             setCurrentUserEmail(data.userEmail);
@@ -68,11 +81,27 @@ const App: React.FC = () => {
           }
           setIsSetupComplete(true);
         }
+
+        // Fetch External Google Events (Last 30 days + Next 60 days)
+        const calIds = (data.systemCalendars || data.calendars).map(c => c.id);
+        if (calIds.length > 0) {
+            const start = new Date(); start.setDate(start.getDate() - 30);
+            const end = new Date(); end.setDate(end.getDate() + 60);
+            try {
+                const externalEvents = await fetchExternalEvents(calIds, start.toISOString(), end.toISOString());
+                setEvents([...data.events, ...externalEvents]);
+            } catch (err) {
+                console.warn("Failed to fetch external events", err);
+                setEvents(data.events); // Fallback
+            }
+        } else {
+            setEvents(data.events);
+        }
+
       } catch (e) {
         console.error("Failed to load data", e);
       } finally {
         setIsLoading(false);
-        // Small delay to ensure state is settled before enabling auto-save
         setTimeout(() => { isLoadedRef.current = true; }, 500);
       }
     };
@@ -81,7 +110,12 @@ const App: React.FC = () => {
 
   // Persistence Effects (Auto-Save)
   useEffect(() => { if (isLoadedRef.current) saveData('tasks', tasks); }, [tasks]);
-  useEffect(() => { if (isLoadedRef.current) saveData('events', events); }, [events]);
+  useEffect(() => { 
+      if (isLoadedRef.current) {
+          const localEvents = events.filter(e => !e.googleEventId);
+          saveData('events', localEvents); 
+      }
+  }, [events]);
   useEffect(() => { if (isLoadedRef.current) saveData('books', books); }, [books]);
   useEffect(() => { if (isLoadedRef.current) saveData('notes', notes); }, [notes]);
   useEffect(() => { if (isLoadedRef.current) saveData('people', people); }, [people]);
@@ -124,9 +158,22 @@ const App: React.FC = () => {
     if (view !== 'meeting-notes') setFocusNoteId(undefined);
   };
 
-  const handleSaveItem = (updatedItem: Task | Event) => {
+  const handleSaveItem = async (updatedItem: Task | Event) => {
     if ('status' in updatedItem) {
-        setTasks(prev => prev.map(t => t.id === updatedItem.id ? updatedItem as Task : t));
+        let finalTask = updatedItem as Task;
+        
+        // Sync to Google Calendar
+        if (finalTask.calendarId && finalTask.when) {
+            try {
+                const gEventId = await syncTaskToCalendar(finalTask);
+                finalTask = { ...finalTask, googleEventId: gEventId };
+            } catch (error) {
+                console.error("Failed to sync to Google Calendar", error);
+                alert("Task saved locally, but failed to sync to Google Calendar.");
+            }
+        }
+
+        setTasks(prev => prev.map(t => t.id === finalTask.id ? finalTask : t));
     } else {
         setEvents(prev => prev.map(e => e.id === updatedItem.id ? updatedItem as Event : e));
     }
@@ -134,10 +181,8 @@ const App: React.FC = () => {
 
   const handleDeleteItem = (item: Task | Event) => {
     if ('status' in item) {
-       // It's a task
        setTasks(prev => prev.filter(t => t.id !== item.id));
     } else {
-       // It's an event
        setEvents(prev => prev.filter(e => e.id !== item.id));
     }
     setSelectedItem(null);
@@ -167,9 +212,7 @@ const App: React.FC = () => {
 
   // Dashboard Overview Component
   const Dashboard = () => {
-    // Only count active tasks
     const pendingTasks = tasks.filter(t => t.status !== TaskStatus.DONE).length;
-    // Only show urgent tasks that are NOT done
     const urgentTasks = tasks.filter(t => (t.urgency === 'Critical' || t.urgency === 'High') && t.status !== TaskStatus.DONE).length;
     const today = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
 
@@ -239,7 +282,6 @@ const App: React.FC = () => {
 
         <h3 className="font-bold text-lg md:text-2xl text-slate-700 mb-2 md:mb-4">Urgent Tasks</h3>
         <div className="space-y-2 md:space-y-4">
-             {/* Filter out completed tasks from the Urgent List on Dashboard */}
              {tasks.filter(t => (t.urgency === 'Critical' || t.urgency === 'High') && t.status !== TaskStatus.DONE)
                 .slice(0, 5)
                 .map(task => (
@@ -290,7 +332,7 @@ const App: React.FC = () => {
         <main className={`flex-1 overflow-hidden relative w-full ${getFontSizeClass()}`}>
             {currentView === 'dashboard' && <Dashboard />}
             {currentView === 'braindump' && <BrainDump tasks={tasks} setTasks={setTasks} initialFilter={viewFilter || 'all'} onTaskClick={setSelectedItem} />}
-            {currentView === 'week' && <WeekView tasks={tasks} setTasks={setTasks} onEditTask={setSelectedItem} accentColor={theme.accentColor} calendars={calendars} />}
+            {currentView === 'week' && <WeekView tasks={tasks} events={events} setTasks={setTasks} onEditTask={setSelectedItem} accentColor={theme.accentColor} calendars={calendars} />}
             {currentView === 'library' && <Library books={books} setBooks={setBooks} initialFilter={viewFilter || 'all'} />}
             {currentView === 'meeting-notes' && <MeetingNotes notes={notes} setNotes={setNotes} tasks={tasks} setTasks={setTasks} events={events} setEvents={setEvents} initialNoteId={focusNoteId} onEditTask={(task) => setSelectedItem(task)} />}
             {currentView === 'people' && <People people={people} setPeople={setPeople} />}
