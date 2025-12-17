@@ -55,16 +55,22 @@ function loadData() {
         const file = files.next();
         try {
           const content = file.getBlob().getDataAsString();
-          data[type] = content ? JSON.parse(content) : [];
+          const parsed = content ? JSON.parse(content) : [];
+          // Ensure array types are actually arrays (protect against "null" in file)
+          if (type !== 'user' && !Array.isArray(parsed)) {
+              data[type] = [];
+          } else {
+              data[type] = parsed || (type === 'user' ? null : []);
+          }
         } catch (e) {
           console.error(`Error parsing ${type}: ${e}`);
-          data[type] = [];
+          data[type] = type === 'user' ? null : [];
         }
       }
     });
   }
   
-  // Flatten user object if necessary
+  // Flatten user object if necessary (legacy fix)
   if (Array.isArray(data.user)) {
       data.user = data.user.length > 0 ? data.user[0] : null;
   }

@@ -6,8 +6,9 @@ import { Task, Urgency, Importance, TaskStatus, Book } from "../types";
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
 const getApiKey = () => {
-    // In local dev, use process.env. In GAS, use injected window variable.
-    return process.env.API_KEY || (window as any).GEMINI_API_KEY;
+    // Safely check for process.env to avoid ReferenceError in browser environments
+    const processEnvKey = typeof process !== 'undefined' && process.env ? process.env.API_KEY : undefined;
+    return processEnvKey || (window as any).GEMINI_API_KEY;
 }
 
 export const parseBrainDump = async (text: string, currentTasks: Task[]): Promise<Task[]> => {

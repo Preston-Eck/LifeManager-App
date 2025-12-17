@@ -57,11 +57,23 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({ isOpen, item, cale
     setNewUpdateAttachments([]);
   };
 
+  const validateFileSize = (file: File) => {
+      if (file.size > 1024 * 1024) { // 1MB Limit
+          alert("File is too large for synchronization (Limit: 1MB). Please use a smaller file or host it externally.");
+          return false;
+      }
+      return true;
+  };
+
   const handleUpdateFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      const reader = new FileReader();
+      if (!validateFileSize(file)) {
+          e.target.value = '';
+          return;
+      }
 
+      const reader = new FileReader();
       reader.onloadend = () => {
           const result = reader.result as string;
           const newAttachment: Attachment = {
@@ -81,6 +93,11 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({ isOpen, item, cale
   const handleMainFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0] && isTask(formData)) {
         const file = e.target.files[0];
+        if (!validateFileSize(file)) {
+            e.target.value = '';
+            return;
+        }
+
         const reader = new FileReader();
         reader.onloadend = () => {
             const result = reader.result as string;
@@ -222,7 +239,6 @@ export const DetailSidebar: React.FC<DetailSidebarProps> = ({ isOpen, item, cale
                                 placeholder="e.g. Me, John"
                             />
                         </div>
-                        {/* Intentionally left blank or can add more fields later */}
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">

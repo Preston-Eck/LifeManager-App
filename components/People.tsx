@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { Person, Relationship, RelationshipType, RelationshipContext, InteractionLog, Attachment, ContactMethod } from '../types';
 import { generateGoogleCSV, downloadCSV } from '../services/exportUtils';
@@ -110,7 +111,7 @@ export const People: React.FC<PeopleProps> = ({ people, setPeople }) => {
   // --- Import/Export ---
 
   const handleExport = () => {
-      const csv = generateGoogleCSV(people);
+      const csv = generateGoogleCSV(people || []);
       downloadCSV(csv, `people_export_${new Date().toISOString().split('T')[0]}.csv`);
   };
 
@@ -118,7 +119,7 @@ export const People: React.FC<PeopleProps> = ({ people, setPeople }) => {
       setIsImporting(true);
       try {
           const googleContacts = await importContactsFromGoogle();
-          const result = processImport(googleContacts, people);
+          const result = processImport(googleContacts, people || []);
           setPeople(prev => [...prev, ...result.newContacts]);
           if (result.conflicts.length > 0) {
               alert(`Imported ${result.newContacts.length} new contacts. ${result.conflicts.length} conflicts skipped (merging not implemented in this view).`);
@@ -134,12 +135,13 @@ export const People: React.FC<PeopleProps> = ({ people, setPeople }) => {
   };
 
   const filteredPeople = useMemo(() => {
-    if (!searchTerm) return people;
+    const safePeople = people || [];
+    if (!searchTerm) return safePeople;
     const lower = searchTerm.toLowerCase();
-    return people.filter(p => 
-        p.name.toLowerCase().includes(lower) || 
-        p.organization?.toLowerCase().includes(lower) ||
-        p.role?.toLowerCase().includes(lower)
+    return safePeople.filter(p => 
+        (p.name || '').toLowerCase().includes(lower) || 
+        (p.organization || '').toLowerCase().includes(lower) ||
+        (p.role || '').toLowerCase().includes(lower)
     );
   }, [people, searchTerm]);
 

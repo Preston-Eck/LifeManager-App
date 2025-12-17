@@ -57,17 +57,18 @@ const App: React.FC = () => {
             (window as any).GEMINI_API_KEY = data.env.API_KEY;
         }
 
-        // Batch updates
-        setTasks(data.tasks);
-        setBooks(data.books);
-        setNotes(data.notes);
-        setPeople(data.people);
+        // Batch updates with robust fallbacks
+        setTasks(Array.isArray(data.tasks) ? data.tasks : []);
+        setEvents(Array.isArray(data.events) ? data.events : []);
+        setBooks(Array.isArray(data.books) ? data.books : []);
+        setNotes(Array.isArray(data.notes) ? data.notes : []);
+        setPeople(Array.isArray(data.people) ? data.people : []);
         
         // Use system calendars if available (fresh fetch), otherwise fallback to stored
-        if (data.systemCalendars && data.systemCalendars.length > 0) {
+        if (data.systemCalendars && Array.isArray(data.systemCalendars) && data.systemCalendars.length > 0) {
             setCalendars(data.systemCalendars);
         } else {
-            setCalendars(data.calendars);
+            setCalendars(Array.isArray(data.calendars) ? data.calendars : []);
         }
         
         if (data.userEmail) {
@@ -83,19 +84,17 @@ const App: React.FC = () => {
         }
 
         // Fetch External Google Events (Last 30 days + Next 60 days)
-        const calIds = (data.systemCalendars || data.calendars).map(c => c.id);
+        const calIds = (data.systemCalendars || data.calendars || []).map(c => c.id);
         if (calIds.length > 0) {
             const start = new Date(); start.setDate(start.getDate() - 30);
             const end = new Date(); end.setDate(end.getDate() + 60);
             try {
                 const externalEvents = await fetchExternalEvents(calIds, start.toISOString(), end.toISOString());
-                setEvents([...data.events, ...externalEvents]);
+                setEvents(prev => [...prev, ...(Array.isArray(externalEvents) ? externalEvents : [])]);
             } catch (err) {
                 console.warn("Failed to fetch external events", err);
-                setEvents(data.events); // Fallback
+                // Fallback to local only (already set)
             }
-        } else {
-            setEvents(data.events);
         }
 
       } catch (e) {

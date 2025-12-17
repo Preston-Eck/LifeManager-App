@@ -104,8 +104,14 @@ export const BrainDump: React.FC<BrainDumpProps> = ({ tasks, setTasks, initialFi
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, taskId?: string) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      const reader = new FileReader();
+      
+      if (file.size > 1024 * 1024) {
+          alert("File is too large for synchronization (Limit: 1MB).");
+          e.target.value = '';
+          return;
+      }
 
+      const reader = new FileReader();
       reader.onloadend = () => {
           const result = reader.result as string;
           const newAttachment: Attachment = {
@@ -155,11 +161,6 @@ export const BrainDump: React.FC<BrainDumpProps> = ({ tasks, setTasks, initialFi
   const toggleTaskComplete = (taskId: string, currentStatus: TaskStatus) => {
       const newStatus = currentStatus === TaskStatus.DONE ? TaskStatus.TODO : TaskStatus.DONE;
       const completedAt = newStatus === TaskStatus.DONE ? new Date().toISOString() : undefined;
-      
-      // When marking done, we effectively nullify urgency/importance in the UI sorting, 
-      // but here we persist them as LOW for data consistency or allow them to stay.
-      // The prompt requested: "When tasks are completed their priority... become null"
-      // Since we use Enums, we will set them to LOW.
       
       setTasks(prev => prev.map(t => {
           if (t.id !== taskId) return t;

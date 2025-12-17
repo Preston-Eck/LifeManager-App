@@ -43,9 +43,9 @@ export const loadAllData = (): Promise<AppData> => {
             // Robust parsing: Handle if GAS returns object OR string
             let data: AppData;
             if (typeof response === 'string') {
-               data = JSON.parse(response);
+               data = JSON.parse(response) || {}; // Guard against null
             } else {
-               data = response;
+               data = response || {}; // Guard against null
             }
             resolve(data);
           } catch (e) {
@@ -106,7 +106,8 @@ export const fetchExternalEvents = (calendarIds: string[], startDate: string, en
       window.google!.script.run
         .withSuccessHandler((response: string) => {
            try {
-             resolve(JSON.parse(response));
+             const parsed = JSON.parse(response);
+             resolve(Array.isArray(parsed) ? parsed : []);
            } catch(e) { reject(e); }
         })
         .withFailureHandler((e: any) => reject(e))
@@ -132,7 +133,9 @@ export const importContactsFromGoogle = (): Promise<Person[]> => {
             window.google!.script.run
                 .withSuccessHandler((response: string) => {
                     try {
-                        const rawPeople = JSON.parse(response);
+                        const rawPeople = JSON.parse(response) || [];
+                        if (!Array.isArray(rawPeople)) throw new Error("Invalid format");
+                        
                         // Normalize raw structure to include contactMethods
                         const people: Person[] = rawPeople.map((p: any) => {
                             const emails: ContactMethod[] = (p.emails || []).map((e: string) => ({ label: 'Work', value: e }));
@@ -180,7 +183,11 @@ export const importContactsFromGoogle = (): Promise<Person[]> => {
 const getMockOrLocalData = (): AppData => {
   const get = (key: string, mock: any) => {
     const saved = localStorage.getItem(`lm_${key}`);
-    return saved ? JSON.parse(saved) : mock;
+    try {
+        return saved ? (JSON.parse(saved) || mock) : mock;
+    } catch(e) {
+        return mock;
+    }
   };
 
   return {
