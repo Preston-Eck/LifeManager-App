@@ -122,7 +122,7 @@ export const People: React.FC<PeopleProps> = ({ people, setPeople }) => {
           const result = processImport(googleContacts, people || []);
           setPeople(prev => [...prev, ...result.newContacts]);
           if (result.conflicts.length > 0) {
-              alert(`Imported ${result.newContacts.length} new contacts. ${result.conflicts.length} conflicts skipped (merging not implemented in this view).`);
+              alert(`Imported ${result.newContacts.length} new contacts. ${result.conflicts.length} conflicts skipped.`);
           } else {
               alert(`Imported ${result.newContacts.length} contacts successfully.`);
           }
@@ -131,6 +131,30 @@ export const People: React.FC<PeopleProps> = ({ people, setPeople }) => {
           console.error(e);
       } finally {
           setIsImporting(false);
+      }
+  };
+
+  const handleCSVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files && e.target.files[0]) {
+          const file = e.target.files[0];
+          const reader = new FileReader();
+          reader.onload = (event) => {
+              const text = event.target?.result as string;
+              if (text) {
+                  try {
+                      const importedContacts = parseGoogleCSV(text);
+                      const result = processImport(importedContacts, people || []);
+                      setPeople(prev => [...prev, ...result.newContacts]);
+                      alert(`Successfully imported ${result.newContacts.length} contacts from CSV.`);
+                  } catch (err) {
+                      alert("Failed to parse CSV. Ensure it is Google Contacts format.");
+                      console.error(err);
+                  }
+              }
+          };
+          reader.readAsText(file);
+          // Reset value
+          e.target.value = '';
       }
   };
 
@@ -281,14 +305,21 @@ export const People: React.FC<PeopleProps> = ({ people, setPeople }) => {
         <div className="flex justify-between items-center mb-6">
             <h2 className="text-3xl font-bold text-slate-800">People</h2>
             <div className="flex gap-2">
-                 <button onClick={handleExport} className="text-slate-500 hover:text-slate-800 px-3 py-2 rounded bg-white border border-slate-200 text-sm">
+                 <button onClick={handleExport} className="text-slate-500 hover:text-slate-800 px-3 py-2 rounded bg-white border border-slate-200 text-sm hidden md:block">
                     <i className="fas fa-download mr-2"></i> Export
                 </button>
+                
+                {/* CSV Import */}
+                <label className="text-slate-500 hover:text-slate-800 px-3 py-2 rounded bg-white border border-slate-200 text-sm cursor-pointer flex items-center">
+                    <i className="fas fa-file-csv mr-2"></i> Import CSV
+                    <input type="file" accept=".csv" className="hidden" onChange={handleCSVUpload} />
+                </label>
+
                 <button onClick={handleGoogleImport} disabled={isImporting} className="text-slate-500 hover:text-slate-800 px-3 py-2 rounded bg-white border border-slate-200 text-sm">
-                    <i className={`fab fa-google mr-2 ${isImporting ? 'fa-spin' : ''}`}></i> Import
+                    <i className={`fab fa-google mr-2 ${isImporting ? 'fa-spin' : ''}`}></i> Sync
                 </button>
                 <button onClick={handleAddPerson} className="bg-sky-600 text-white px-4 py-2 rounded hover:bg-sky-700 shadow-sm font-medium">
-                    <i className="fas fa-plus mr-2"></i> Add Person
+                    <i className="fas fa-plus mr-2"></i> Add
                 </button>
             </div>
         </div>

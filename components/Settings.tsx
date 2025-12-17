@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { GoogleCalendar, ThemePreferences } from '../types';
 
@@ -6,13 +7,15 @@ interface SettingsProps {
   setCalendars: React.Dispatch<React.SetStateAction<GoogleCalendar[]>>;
   theme: ThemePreferences;
   setTheme: (theme: ThemePreferences) => void;
+  userEmail?: string;
 }
 
-export const Settings: React.FC<SettingsProps> = ({ calendars, setCalendars, theme, setTheme }) => {
+export const Settings: React.FC<SettingsProps> = ({ calendars, setCalendars, theme, setTheme, userEmail }) => {
   const [newAccountEmail, setNewAccountEmail] = useState('');
 
   // Group calendars by account
   const accounts = Array.from(new Set(calendars.map(c => c.accountId)));
+  const hasApiKey = !!(window as any).GEMINI_API_KEY;
 
   const handleAddAccount = () => {
     if (!newAccountEmail) return;
@@ -46,6 +49,36 @@ export const Settings: React.FC<SettingsProps> = ({ calendars, setCalendars, the
     <div className="p-6 max-w-4xl mx-auto overflow-y-auto no-scrollbar pb-24 h-full">
       <h1 className="text-3xl font-bold text-slate-800 mb-2">Settings</h1>
       
+      {/* System Status */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
+          <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+              <i className="fas fa-server text-emerald-500"></i> System Status
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-3 bg-slate-50 rounded border border-slate-100 flex items-center justify-between">
+                  <div className="flex flex-col">
+                      <span className="text-xs font-bold text-slate-500 uppercase">Current Account</span>
+                      <span className="text-sm font-medium text-slate-800">{userEmail || 'Unknown'}</span>
+                  </div>
+                  <i className="fab fa-google text-slate-400 text-lg"></i>
+              </div>
+              <div className="p-3 bg-slate-50 rounded border border-slate-100 flex items-center justify-between">
+                  <div className="flex flex-col">
+                      <span className="text-xs font-bold text-slate-500 uppercase">AI Features</span>
+                      <span className={`text-sm font-medium ${hasApiKey ? 'text-emerald-600' : 'text-red-500'}`}>
+                          {hasApiKey ? 'Connected (API Key Detected)' : 'Disconnected (Missing API Key)'}
+                      </span>
+                  </div>
+                  <i className={`fas ${hasApiKey ? 'fa-check-circle text-emerald-500' : 'fa-times-circle text-red-500'} text-lg`}></i>
+              </div>
+          </div>
+          {!hasApiKey && (
+              <div className="mt-2 text-xs text-red-500 bg-red-50 p-2 rounded">
+                  <i className="fas fa-info-circle mr-1"></i> Add <strong>API_KEY</strong> to Script Properties in GAS Editor.
+              </div>
+          )}
+      </div>
+
       {/* Appearance Settings */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
         <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">

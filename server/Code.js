@@ -5,7 +5,6 @@ const DATA_FOLDER_NAME = "LifeManagerData";
 const DATA_FILES = ['tasks', 'events', 'books', 'notes', 'people', 'calendars', 'user'];
 
 function doGet(e) {
-  // Use a template to allow for future variable injection if needed
   const template = HtmlService.createTemplateFromFile('index.html');
   return template.evaluate()
       .setTitle('LifeManager Pro')
@@ -15,12 +14,23 @@ function doGet(e) {
 
 // --- Data Management ---
 
-function initializeBackend() {
+function getBackendFolder() {
   const folders = DriveApp.getFoldersByName(DATA_FOLDER_NAME);
   let folder;
-  if (folders.hasNext()) {
-    folder = folders.next();
-  } else {
+  while (folders.hasNext()) {
+    const f = folders.next();
+    if (!f.isTrashed()) {
+      folder = f;
+      break;
+    }
+  }
+  return folder;
+}
+
+function initializeBackend() {
+  let folder = getBackendFolder();
+  
+  if (!folder) {
     folder = DriveApp.createFolder(DATA_FOLDER_NAME);
   }
   
@@ -36,8 +46,7 @@ function initializeBackend() {
 }
 
 function loadData() {
-  // 1. Load Data Files from Drive
-  const folders = DriveApp.getFoldersByName(DATA_FOLDER_NAME);
+  const folder = getBackendFolder();
   
   // Default empty state
   const data = {
@@ -47,30 +56,37 @@ function loadData() {
     env: {}
   };
 
-  if (folders.hasNext()) {
-    const folder = folders.next();
+  if (folder) {
     DATA_FILES.forEach(type => {
       const files = folder.getFilesByName(`${type}.json`);
       if (files.hasNext()) {
         const file = files.next();
+        const content = file.getBlob().getDataAsString();
+        
         try {
-          const content = file.getBlob().getDataAsString();
           const parsed = content ? JSON.parse(content) : [];
-          // Ensure array types are actually arrays (protect against "null" in file)
+          // Ensure array types are actually arrays
           if (type !== 'user' && !Array.isArray(parsed)) {
               data[type] = [];
           } else {
               data[type] = parsed || (type === 'user' ? null : []);
           }
         } catch (e) {
+          // CRITICAL: If a file exists and has content but fails to parse, 
+          // throw error to prevent App from loading empty state and overwriting data.
+          if (content && content.trim().length > 0) {
+             throw new Error(`Data Corruption in ${type}.json: ${e.message}. Fix file in Drive manually.`);
+          }
           console.error(`Error parsing ${type}: ${e}`);
           data[type] = type === 'user' ? null : [];
         }
       }
     });
+  } else {
+    console.warn("No data folder found during loadData");
   }
   
-  // Flatten user object if necessary (legacy fix)
+  // Flatten user object if necessary
   if (Array.isArray(data.user)) {
       data.user = data.user.length > 0 ? data.user[0] : null;
   }
@@ -85,14 +101,16 @@ function loadData() {
       accountId: Session.getActiveUser().getEmail()
     }));
   } catch (e) {
-    console.warn("Could not fetch system calendars", e);
+    console.warn("Could not fetch system calendars. Likely permission issue or not enabled.", e);
+    // Return empty list rather than failing the whole load
+    data.systemCalendars = []; 
   }
 
   // 3. Inject Script Properties (API Keys)
   try {
     const scriptProperties = PropertiesService.getScriptProperties().getProperties();
     data.env = {
-      API_KEY: scriptProperties['API_KEY'] || '' // Gemini API Key
+      API_KEY: scriptProperties['API_KEY'] || '' 
     };
   } catch (e) {
     console.warn("Could not fetch script properties", e);
@@ -104,10 +122,12 @@ function loadData() {
 function saveData(type, jsonData) {
   if (!DATA_FILES.includes(type)) throw new Error("Invalid data type");
   
-  const folders = DriveApp.getFoldersByName(DATA_FOLDER_NAME);
-  if (!folders.hasNext()) return false;
+  let folder = getBackendFolder();
+  if (!folder) {
+    // Fallback if folder missing
+    folder = DriveApp.createFolder(DATA_FOLDER_NAME);
+  }
   
-  const folder = folders.next();
   const files = folder.getFilesByName(`${type}.json`);
   
   if (files.hasNext()) {
@@ -123,7 +143,10 @@ function saveData(type, jsonData) {
 
 function importGoogleContacts() {
   try {
-    // Requires 'People' Advanced Service enabled in Resources
+    if (typeof People === 'undefined') {
+        throw new Error("People API Service not enabled. Go to Resources > Advanced Google Services > Enable People API.");
+    }
+
     const connections = People.People.Connections.list('people/me', {
       personFields: 'names,emailAddresses,phoneNumbers,organizations,birthdays,photos',
       pageSize: 1000
@@ -175,7 +198,8 @@ function importGoogleContacts() {
     
     return JSON.stringify(contacts);
   } catch (e) {
-    throw new Error("Failed to fetch contacts: " + e.message);
+    // Return explicit error message for frontend to alert
+    throw new Error(e.message || "Failed to fetch contacts.");
   }
 }
 
@@ -223,9 +247,8 @@ function getGoogleCalendarEvents(calendarIds, startDateStr, endDateStr) {
   const end = new Date(endDateStr);
   const allEvents = [];
 
-  // Limit range to prevent timeout
+  // Limit range
   if (end.getTime() - start.getTime() > 90 * 24 * 60 * 60 * 1000) {
-      // Cap at 90 days if requested range is huge
       end.setTime(start.getTime() + 90 * 24 * 60 * 60 * 1000);
   }
 
@@ -237,7 +260,7 @@ function getGoogleCalendarEvents(calendarIds, startDateStr, endDateStr) {
       const events = cal.getEvents(start, end);
       events.forEach(ev => {
         allEvents.push({
-          id: 'gcal-' + ev.getId(), // Prefix to avoid ID collisions
+          id: 'gcal-' + ev.getId(), 
           title: ev.getTitle(),
           description: ev.getDescription(),
           when: ev.getStartTime().toISOString(),

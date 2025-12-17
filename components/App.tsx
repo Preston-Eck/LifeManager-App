@@ -19,6 +19,7 @@ const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [currentUserEmail, setCurrentUserEmail] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isSetupComplete, setIsSetupComplete] = useState(false);
 
   // App Data State
@@ -46,68 +47,72 @@ const App: React.FC = () => {
   const [focusNoteId, setFocusNoteId] = useState<string | undefined>(undefined);
 
   // Initial Data Load
-  useEffect(() => {
-    const init = async () => {
-      try {
-        const data = await loadAllData();
-        
-        // --- ENV Injection for GAS ---
-        if (data.env && data.env.API_KEY) {
-            // Polyfill for client-side API Key usage
-            (window as any).GEMINI_API_KEY = data.env.API_KEY;
-        }
-
-        // Batch updates with robust fallbacks
-        setTasks(Array.isArray(data.tasks) ? data.tasks : []);
-        setEvents(Array.isArray(data.events) ? data.events : []);
-        setBooks(Array.isArray(data.books) ? data.books : []);
-        setNotes(Array.isArray(data.notes) ? data.notes : []);
-        setPeople(Array.isArray(data.people) ? data.people : []);
-        
-        // Use system calendars if available (fresh fetch), otherwise fallback to stored
-        if (data.systemCalendars && Array.isArray(data.systemCalendars) && data.systemCalendars.length > 0) {
-            setCalendars(data.systemCalendars);
-        } else {
-            setCalendars(Array.isArray(data.calendars) ? data.calendars : []);
-        }
-        
-        if (data.userEmail) {
-            setCurrentUserEmail(data.userEmail);
-        }
-
-        if (data.user) {
-          setUser(data.user);
-          if (data.user.theme) {
-            setTheme(data.user.theme);
-          }
-          setIsSetupComplete(true);
-        }
-
-        // Fetch External Google Events (Last 30 days + Next 60 days)
-        const calIds = (data.systemCalendars || data.calendars || []).map(c => c.id);
-        if (calIds.length > 0) {
-            const start = new Date(); start.setDate(start.getDate() - 30);
-            const end = new Date(); end.setDate(end.getDate() + 60);
-            try {
-                const externalEvents = await fetchExternalEvents(calIds, start.toISOString(), end.toISOString());
-                setEvents(prev => [...prev, ...(Array.isArray(externalEvents) ? externalEvents : [])]);
-            } catch (err) {
-                console.warn("Failed to fetch external events", err);
-                // Fallback to local only (already set)
-            }
-        }
-
-      } catch (e) {
-        console.error("Failed to load data", e);
-      } finally {
-        setIsLoading(false);
-        setTimeout(() => { isLoadedRef.current = true; }, 500);
+  const initData = async () => {
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const data = await loadAllData();
+      
+      // --- ENV Injection for GAS ---
+      if (data.env && data.env.API_KEY) {
+          (window as any).GEMINI_API_KEY = data.env.API_KEY;
       }
-    };
-    init();
+
+      // Batch updates
+      setTasks(Array.isArray(data.tasks) ? data.tasks : []);
+      setEvents(Array.isArray(data.events) ? data.events : []);
+      setBooks(Array.isArray(data.books) ? data.books : []);
+      setNotes(Array.isArray(data.notes) ? data.notes : []);
+      setPeople(Array.isArray(data.people) ? data.people : []);
+      
+      if (data.systemCalendars && Array.isArray(data.systemCalendars) && data.systemCalendars.length > 0) {
+          setCalendars(data.systemCalendars);
+      } else {
+          setCalendars(Array.isArray(data.calendars) ? data.calendars : []);
+      }
+      
+      if (data.userEmail) {
+          setCurrentUserEmail(data.userEmail);
+      }
+
+      if (data.user) {
+        setUser(data.user);
+        if (data.user.theme) {
+          setTheme(data.user.theme);
+        }
+        setIsSetupComplete(true);
+      }
+
+      // Only mark loaded if successful
+      setTimeout(() => { isLoadedRef.current = true; }, 500);
+
+      // Fetch External Google Events (Last 30 days + Next 60 days)
+      const calIds = (data.systemCalendars || data.calendars || []).map(c => c.id);
+      if (calIds.length > 0) {
+          const start = new Date(); start.setDate(start.getDate() - 30);
+          const end = new Date(); end.setDate(end.getDate() + 60);
+          try {
+              const externalEvents = await fetchExternalEvents(calIds, start.toISOString(), end.toISOString());
+              setEvents(prev => [...prev, ...(Array.isArray(externalEvents) ? externalEvents : [])]);
+          } catch (err) {
+              console.warn("Failed to fetch external events", err);
+          }
+      }
+
+    } catch (e: any) {
+      console.error("Failed to load data", e);
+      setLoadError(e.message || "Failed to connect to Google Drive.");
+      isLoadedRef.current = false; // Prevent auto-save on empty
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    initData();
   }, []);
 
-  // Persistence Effects (Auto-Save)
+  // Persistence Effects (Auto-Save) - ONLY if loaded successfully
   useEffect(() => { if (isLoadedRef.current) saveData('tasks', tasks); }, [tasks]);
   useEffect(() => { 
       if (isLoadedRef.current) {
@@ -311,9 +316,30 @@ const App: React.FC = () => {
   if (isLoading) {
     return (
         <div className="h-screen flex items-center justify-center bg-slate-50 text-slate-400">
-            <i className="fas fa-circle-notch fa-spin text-4xl"></i>
+            <div className="flex flex-col items-center gap-4">
+                <i className="fas fa-circle-notch fa-spin text-4xl"></i>
+                <p className="text-sm">Connecting to Drive...</p>
+            </div>
         </div>
     );
+  }
+
+  if (loadError) {
+      return (
+          <div className="h-screen flex items-center justify-center bg-red-50 text-red-800 p-6">
+              <div className="text-center max-w-md">
+                  <i className="fas fa-exclamation-triangle text-4xl mb-4"></i>
+                  <h2 className="text-xl font-bold mb-2">Connection Failed</h2>
+                  <p className="mb-6">{loadError}</p>
+                  <button 
+                    onClick={() => initData()} 
+                    className="bg-red-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-red-700 transition"
+                  >
+                      Retry Connection
+                  </button>
+              </div>
+          </div>
+      );
   }
 
   if (!user) {
@@ -331,11 +357,11 @@ const App: React.FC = () => {
         <main className={`flex-1 overflow-hidden relative w-full ${getFontSizeClass()}`}>
             {currentView === 'dashboard' && <Dashboard />}
             {currentView === 'braindump' && <BrainDump tasks={tasks} setTasks={setTasks} initialFilter={viewFilter || 'all'} onTaskClick={setSelectedItem} />}
-            {currentView === 'week' && <WeekView tasks={tasks} events={events} setTasks={setTasks} onEditTask={setSelectedItem} accentColor={theme.accentColor} calendars={calendars} />}
+            {currentView === 'week' && <WeekView tasks={tasks} setTasks={setTasks} onEditTask={setSelectedItem} accentColor={theme.accentColor} calendars={calendars} />}
             {currentView === 'library' && <Library books={books} setBooks={setBooks} initialFilter={viewFilter || 'all'} />}
             {currentView === 'meeting-notes' && <MeetingNotes notes={notes} setNotes={setNotes} tasks={tasks} setTasks={setTasks} events={events} setEvents={setEvents} initialNoteId={focusNoteId} onEditTask={(task) => setSelectedItem(task)} />}
             {currentView === 'people' && <People people={people} setPeople={setPeople} />}
-            {currentView === 'settings' && <Settings calendars={calendars} setCalendars={setCalendars} theme={theme} setTheme={updateTheme} />}
+            {currentView === 'settings' && <Settings calendars={calendars} setCalendars={setCalendars} theme={theme} setTheme={updateTheme} userEmail={currentUserEmail} />}
         </main>
 
         <DetailSidebar 
